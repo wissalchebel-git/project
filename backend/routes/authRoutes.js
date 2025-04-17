@@ -12,3 +12,4 @@ router.post("/login", authController.loginUser);
 router.get("/profile", authController.getProfile);
 
 module.exports = router;
+

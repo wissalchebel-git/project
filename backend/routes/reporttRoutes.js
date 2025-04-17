@@ -19,10 +19,10 @@ router.post("/scan-results",authMiddleware,
 );
 
 // Get all scan results
-router.get("/scan-results", authMiddleware, reportController.getAllScanResults); // Fixed the method name
+router.get("/scan-results", authMiddleware, reportController.getAllScanResults);
 
 // Get scan result by ID
-router.get("/scan-results/:id", authMiddleware, reportController.getScanResultById); // Fixed the method name
+router.get("/scan-results/:id", authMiddleware, reportController.getScanResultById);
 
 // Get recommendations by scan result ID
 router.get("/scan-results/:scanResultId/recommendations", authMiddleware, reportController.getRecommendationsByScanResult); // Fixed the method name

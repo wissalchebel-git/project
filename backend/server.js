@@ -34,7 +34,6 @@ app.use(express.json());
 
 // Setup Keycloak middleware
 //const keycloak = getKeycloak({ store: memoryStore });
-
 //app.use(keycloak.middleware());
 
 // Routes
@@ -57,3 +56,4 @@ app.use(errorHandler);
 // Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+

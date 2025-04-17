@@ -1,17 +1,45 @@
 const mongoose = require('mongoose');
 
-const ScanResultSchema = new mongoose.Schema({
-  projectName: { type: String, required: true },
-  scanDate: { type: Date, default: Date.now },
-  score: { type: Number, required: true },
-  toolsUsed: [{ type: String }],
+const scanResultSchema = new mongoose.Schema({
+  project: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    required: true
+  },
+  tool: {
+    type: String,
+    enum: ['SonarQube', 'Trivy', 'OWASP'],
+    required: true
+  },
+  issues: [{
+    type: String
+  }],
   vulnerabilities: [{
     name: String,
-    severity: String,
     description: String,
-    recommendation: String
+    severity: {
+      type: String,
+      enum: ['low', 'medium', 'high', 'critical'],
+      default: 'low'
+    },
+    cve: String
   }],
-  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  score: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 100
+  },
+  severity: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'critical'],
+    default: 'low'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
 });
 
-module.exports = mongoose.model('ScanResult', ScanResultSchema);
+module.exports = mongoose.model('ScanResult', scanResultSchema);
+

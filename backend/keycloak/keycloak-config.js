@@ -32,3 +32,4 @@ const getKeycloak = (options) => {
 };
 
 module.exports = getKeycloak;
+

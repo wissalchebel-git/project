@@ -120,42 +120,42 @@ const updateScanResult = async (req, res) => {
     if (!scanResult) {
       return res.status(404).json({ message: "Scan result not found" });
     }
-        // Update the fields
-        scanResult.vulnerability = vulnerability || scanResult.vulnerability;
-        scanResult.score = score || scanResult.score;
-        scanResult.userId = userId || scanResult.userId;
-    
-        await scanResult.save();
-    
-        res.status(200).json(scanResult);
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Server error", error });
-      }
-    };
-    
-    const deleteScanResult = async (req, res) => {
-      const { id } = req.params;
-    
-      try {
-        // Find and remove the scan result by ID
-        const scanResult = await ScanResult.findByIdAndDelete(id);
-    
-        if (!scanResult) {
-          return res.status(404).json({ message: "Scan result not found" });
-        }
-    
-        // Optionally, you can delete recommendations related to this scan result
-        await Recommendation.deleteMany({ scanResultId: id });
-    
-        res.status(200).json({ message: "Scan result deleted successfully" });
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Server error", error });
-      }
-    };
 
-    
+    // Update the fields
+    scanResult.vulnerability = vulnerability || scanResult.vulnerability;
+    scanResult.score = score || scanResult.score;
+    scanResult.userId = userId || scanResult.userId;
+
+    await scanResult.save();
+
+    res.status(200).json(scanResult);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error", error });
+  }
+};
+
+const deleteScanResult = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Find and remove the scan result by ID
+    const scanResult = await ScanResult.findByIdAndDelete(id);
+
+    if (!scanResult) {
+      return res.status(404).json({ message: "Scan result not found" });
+    }
+
+    // Optionally, you can delete recommendations related to this scan result
+    await Recommendation.deleteMany({ scanResultId: id });
+
+    res.status(200).json({ message: "Scan result deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error", error });
+  }
+};
+
 const addRecommendationToScanResult = async (req, res) => {
   const { scanResultId } = req.params;
   const { description } = req.body;
@@ -186,6 +186,7 @@ const addRecommendationToScanResult = async (req, res) => {
     res.status(500).json({ message: "Server error", error });
   }
 };
+
 module.exports = {
   createScanResult,
   getAllScanResults,
