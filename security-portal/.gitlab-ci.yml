@@ -1,0 +1,52 @@
+image: docker:latest
+
+variables:
+  DOCKER_IMAGE: "$CI_REGISTRY_USER/security-portal-frontend"
+  DOCKER_TAG: "latest"
+  DOCKER_HUB_REPO: "wchebel/security-portal-frontend"
+  FRONTEND_DIR: "frontend"
+
+services:
+  - docker:dind
+
+stages:
+  - build
+  - scan
+  - push
+  - deploy
+
+before_script:
+  - apk add --no-cache bash
+  - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+
+build:
+  stage: build
+  image: node:20
+  script:
+    - cd $FRONTEND_DIR
+    - npm install
+    - npm run build --prod
+    - tar -cvf build.tar dist/
+  artifacts:
+    paths:
+      - frontend/build.tar
+
+scan:
+  stage: scan
+  image: aquasec/trivy
+  script:
+    - trivy fs --exit-code 1 --severity HIGH,CRITICAL .
+
+push:
+  stage: push
+  script:
+    - docker build -t $DOCKER_HUB_REPO:$DOCKER_TAG frontend/
+    - docker push $DOCKER_HUB_REPO:$DOCKER_TAG
+
+deploy:
+  stage: deploy
+  script:
+    - docker pull $DOCKER_HUB_REPO:$DOCKER_TAG
+    - docker stop security-portal-frontend || true
+    - docker rm security-portal-frontend || true
+    - docker run -d -p 80:80 --name security-portal-frontend $DOCKER_HUB_REPO:$DOCKER_TAG

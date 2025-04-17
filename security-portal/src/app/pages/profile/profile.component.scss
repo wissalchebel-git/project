@@ -1,0 +1,17 @@
+.settings {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 20px 0;
+  }
+  
+  .buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+  }
+  
+  nb-input {
+    width: 100%;
+  }
+  

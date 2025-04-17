@@ -1,0 +1,12 @@
+<nb-layout>
+  <nb-layout-header fixed> Security Dashboard </nb-layout-header>
+
+  <nb-layout-column>
+    <nb-card>
+      <nb-card-header> Security Scan Results </nb-card-header>
+      <nb-card-body>
+        <div echarts [options]="chartOptions" class="echart"></div>
+      </nb-card-body>
+    </nb-card>
+  </nb-layout-column>
+</nb-layout>

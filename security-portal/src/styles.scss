@@ -1,0 +1,11 @@
+@import '@nebular/theme/styles/globals';  // Global styles
+@import '@nebular/theme/styles/theming';  // Theming support
+@import '@nebular/theme/styles/themes/default';  //  Default theme
+
+// Apply the theme
+@include nb-theme-global();
+
+body {
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+}

@@ -1,0 +1,202 @@
+<nb-card>
+    <nb-card-header>🔐 Security Assessment Module</nb-card-header>
+    <nb-card-body>
+        <form #securityForm="ngForm" (ngSubmit)="calculateScore()">
+                    <nb-card>
+                    <nb-card-header>📝 General Information</nb-card-header>
+                    <nb-card-body>
+                        <nb-list>
+                        <nb-list-item>
+                            <p>1. What is the name of your project?</p>
+                            <input nbInput placeholder="Enter project name" [(ngModel)]="answers.projectName" name="projectName" required>
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>2. Is your project registered in a GitLab repository?</p>
+                            <nb-radio-group [(ngModel)]="answers.gitLabRepo" name="gitLabRepo">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                            <input *ngIf="answers.gitLabRepo === 'yes'" nbInput placeholder="Enter GitLab URL" [(ngModel)]="answers.gitLabURL" name="gitLabURL">
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>3. What is the main objective of your project?</p>
+                            <textarea nbInput placeholder="Describe your project" [(ngModel)]="answers.projectObjective" name="projectObjective"></textarea>
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>4. Who are the parts involved in this project?</p>
+                            <textarea nbInput placeholder="List stakeholders" [(ngModel)]="answers.stakeholders" name="stakeholders"></textarea>
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>5. Provide your email address:</p>
+                            <input nbInput type="email" placeholder="example@domain.com" [(ngModel)]="answers.email" name="email" required>
+                        </nb-list-item>
+                        </nb-list>
+                    </nb-card-body>
+                    </nb-card>
+            
+                    
+                    <nb-card>
+                    <nb-card-header>🔎 Security Assessment</nb-card-header>
+                    <nb-card-body>
+                        <nb-list>
+                        <nb-list-item>
+                            <p>6. Do you use multi-factor authentication (MFA)?</p>
+                            <nb-radio-group [(ngModel)]="answers.mfa" name="mfa">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>7. Are your Git repositories configured with protection rules?</p>
+                            <nb-radio-group [(ngModel)]="answers.gitProtection" name="gitProtection">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>8. What security measures have you put in place?</p>
+                            <nb-checkbox>
+                            <nb-checkbox value="access_control" [(ngModel)]="answers.securityMeasures.accessControl">Access Control</nb-checkbox>
+                            <nb-checkbox value="encryption" [(ngModel)]="answers.securityMeasures.encryption">Data Encryption</nb-checkbox>
+                            <nb-checkbox value="audits" [(ngModel)]="answers.securityMeasures.audits">Regular Audits</nb-checkbox>
+                            </nb-checkbox>
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>9. Do you use static or dynamic analysis tools?</p>
+                            <input nbInput placeholder="Enter tool names (e.g. SonarQube, OWASP ZAP)" [(ngModel)]="answers.analysisTools" name="analysisTools">
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>10. Have you implemented automated security tests in your CI/CD pipeline?</p>
+                            <textarea nbInput placeholder="Describe the process" [(ngModel)]="answers.securityTests" name="securityTests"></textarea>
+                        </nb-list-item>
+
+                        <nb-list-item>
+                            <p>11.	Do you use software composition analysis (SCA) tools such as Snyk or OWASP Dependency-Check?</p>
+                            <nb-radio-group [(ngModel)]="answers.gitProtection" name="gitProtection">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                        </nb-list-item> 
+
+                        </nb-list>
+                    </nb-card-body>
+                    </nb-card>
+            
+                    <!-- Vulnerability Identification -->
+                    <nb-card>
+                    <nb-card-header>🚨 Vulnerabilities Identification</nb-card-header>
+                    <nb-card-body>
+                        <nb-list>
+                        <nb-list-item>
+                            <p>12. Do you regularly perform vulnerability scans?</p>
+                            <nb-radio-group [(ngModel)]="answers.vulnerabilityScans" name="vulnerabilityScans">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>13. Have you already identified any vulnerabilities?</p>
+                            <nb-radio-group [(ngModel)]="answers.identifiedVulnerabilities" name="identifiedVulnerabilities">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                            <textarea *ngIf="answers.identifiedVulnerabilities === 'yes'" nbInput placeholder="Describe how you handled them" [(ngModel)]="answers.vulnerabilityHandling" name="vulnerabilityHandling"></textarea>
+                        </nb-list-item>    
+                        
+                        <nb-list-item>
+                            <p>14. What is the frequency of your security updates and patches?</p>
+                            <input nbInput placeholder="e.g., Weekly, Monthly" [(ngModel)]="answers.securityUpdates" name="securityUpdates">
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>15. Do you have monitoring tools to detect attacks in real-time?</p>
+                            <nb-radio-group [(ngModel)]="answers.monitoringTools" name="monitoringTools">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>16. Do you manage secrets and credentials securely?</p>
+                            <nb-radio-group [(ngModel)]="answers.secretsManagement" name="secretsManagement">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>17. Do you have a contingency plan in the event of a security breach?</p>
+                            <nb-radio-group [(ngModel)]="answers.contingencyPlan" name="contingencyPlan">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                        </nb-list-item>
+                        </nb-list>
+                    </nb-card-body>
+                    </nb-card>    
+
+                    <!-- Compliance & Training -->
+                    <nb-card>
+                    <nb-card-header>📜 Compliance & Training</nb-card-header>
+                    <nb-card-body>
+                        <nb-list>
+                        <nb-list-item>
+                            <p>18. Does your project comply with any security standards?</p>
+                            <input nbInput placeholder="Enter standards (e.g. RGPD, ISO 27001)" [(ngModel)]="answers.complianceStandards" name="complianceStandards">
+                        </nb-list-item>
+            
+                        <nb-list-item>
+                            <p>19. Have you carried out a risk assessment?</p>
+                            <nb-radio-group [(ngModel)]="answers.riskAssessment" name="riskAssessment">
+                            <nb-radio value="yes">Yes</nb-radio>
+                            <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                        </nb-list-item>
+                        </nb-list>
+                    </nb-card-body>
+                    </nb-card>
+
+                    <!-- Awareness and Training -->
+                    <nb-card>
+                        <nb-card-header>📚 Awareness and Training</nb-card-header>
+                        <nb-card-body>
+                        <nb-list>
+                            <nb-list-item>
+                            <p>20. Do your team members receive regular training on application security?</p>
+                            <nb-radio-group [(ngModel)]="answers.securityTraining" name="securityTraining">
+                                <nb-radio value="yes">Yes</nb-radio>
+                                <nb-radio value="no">No</nb-radio>
+                            </nb-radio-group>
+                            <div *ngIf="answers.securityTraining === 'yes'">
+                                <p>➡️ If so, what is the frequency and content of this training?</p>
+                                <input nbInput placeholder="e.g., Monthly - Secure Coding, OWASP Top 10" [(ngModel)]="answers.trainingFrequency" name="trainingFrequency">
+                            </div>
+                            </nb-list-item>
+
+                            <nb-list-item>
+                            <p>21. How do you make end-users aware of good security practices?</p>
+                            <textarea nbInput placeholder="Describe your awareness strategy" [(ngModel)]="answers.userAwareness" name="userAwareness"></textarea>
+                            </nb-list-item>
+                        </nb-list>
+                        </nb-card-body>
+                
+                    
+                    <button nbButton status="primary" type="submit">Submit Evaluation</button>
+            
+                    <!-- Display Score -->
+                    <div *ngIf="score !== null">
+                    <nb-alert status="success" *ngIf="score >= 80">✅ Great Security Posture! (Score: {{ score }}%)</nb-alert>
+                    <nb-alert status="warning" *ngIf="score >= 50 && score < 80">⚠️ Moderate Security Level (Score: {{ score }}%)</nb-alert>
+                    <nb-alert status="danger" *ngIf="score < 50">❌ High Risk! Improve Security (Score: {{ score }}%)</nb-alert>
+                    </div>
+  
+        

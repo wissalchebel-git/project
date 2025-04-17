@@ -1,0 +1,24 @@
+<nb-layout>
+  
+  <nb-layout-header fixed>
+    <nb-actions size="medium">
+      <nb-action 
+        icon="menu-outline" 
+        (click)="toggleSidebar()" 
+        (keydown.enter)="toggleSidebar()" 
+        (keydown.space)="toggleSidebar()"
+        tabindex="0">
+      </nb-action>
+    </nb-actions>
+    <span>Security Dashboard</span>
+  </nb-layout-header>
+
+  <nb-sidebar tag="menu-sidebar" responsive>
+    <nb-menu [items]="menuItems"></nb-menu>
+  </nb-sidebar>
+
+  <nb-layout-column>
+    <router-outlet></router-outlet>
+  </nb-layout-column>
+
+</nb-layout>
