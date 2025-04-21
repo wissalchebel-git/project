@@ -18,10 +18,10 @@ services:
     container_name: pfe-backend
     ports:
       - "5000:5000"
+    env_file:
+      - .env
     depends_on:
       - mongo
-    environment:
-      - MONGODB_URI=mongodb://root:password@mongo:27017/security-portal?authSource=security-portal
     volumes:
       - .:/usr/src/app
     command: npm start

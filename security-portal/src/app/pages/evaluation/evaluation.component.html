@@ -12,13 +12,22 @@
                         </nb-list-item>
             
                         <nb-list-item>
-                            <p>2. Is your project registered in a GitLab repository?</p>
-                            <nb-radio-group [(ngModel)]="answers.gitLabRepo" name="gitLabRepo">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
+                            <p>2. Is your project hosted on GitHub?</p>
+                            <nb-radio-group [(ngModel)]="answers.githubRepo" name="githubRepo">
+                              <nb-radio value="yes">Yes</nb-radio>
+                              <nb-radio value="no">No</nb-radio>
                             </nb-radio-group>
-                            <input *ngIf="answers.gitLabRepo === 'yes'" nbInput placeholder="Enter GitLab URL" [(ngModel)]="answers.gitLabURL" name="gitLabURL">
-                        </nb-list-item>
+                          
+                            <!-- GitHub URL input & Clone button shown only if "yes" is selected -->
+                            <div *ngIf="answers.githubRepo === 'yes'" class="mt-2">
+                              <input nbInput placeholder="Enter GitHub repository URL" [(ngModel)]="answers.githubURL" name="githubURL">
+                              
+                              <button nbButton status="info" class="mt-1" (click)="cloneGithubRepo()">
+                                🔄 Clone Repository
+                              </button>
+                            </div>
+                          </nb-list-item>
+                          
             
                         <nb-list-item>
                             <p>3. What is the main objective of your project?</p>
@@ -61,11 +70,11 @@
             
                         <nb-list-item>
                             <p>8. What security measures have you put in place?</p>
-                            <nb-checkbox>
+                            
                             <nb-checkbox value="access_control" [(ngModel)]="answers.securityMeasures.accessControl">Access Control</nb-checkbox>
                             <nb-checkbox value="encryption" [(ngModel)]="answers.securityMeasures.encryption">Data Encryption</nb-checkbox>
                             <nb-checkbox value="audits" [(ngModel)]="answers.securityMeasures.audits">Regular Audits</nb-checkbox>
-                            </nb-checkbox>
+                            
                         </nb-list-item>
             
                         <nb-list-item>

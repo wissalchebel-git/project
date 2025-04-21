@@ -70,4 +70,18 @@ export class EvaluationComponent {
 
     alert(`Security Score: ${this.score}/100`);
   }
+
+  cloneGithubRepo() {
+    if (!this.answers.githubURL) {
+      alert("Please provide a valid GitHub repository URL.");
+      return;
+    }
+  
+    // You can later integrate actual cloning via backend service
+    console.log("Cloning repository from:", this.answers.githubURL);
+    
+    // Optionally trigger a backend API:
+    // this.http.post('/api/clone', { url: this.answers.githubURL }).subscribe(...)
+  }
+  
 }

@@ -9,6 +9,13 @@ const {
   deleteUser
 } = require('../controllers/userController');
 
+console.log("USER CONTROLLERS:", {
+  getAllUsers,
+  getUserById,
+  updateUserRole,
+  deleteUser
+});
+
 // @route   GET /api/users
 // @desc    Get all users
 router.get('/', getAllUsers);
