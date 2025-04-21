@@ -14,7 +14,7 @@ import { NgxEchartsModule } from 'ngx-echarts';
 import { EvaluationComponent } from './pages/evaluation/evaluation.component';
 import { NotificationsComponent } from './pages/notifications/notifications.component';
 import { ProfileComponent } from './pages/profile/profile.component';
-
+import { HttpClientModule } from '@angular/common/http';
 @NgModule({
   declarations: [
     AppComponent,
@@ -26,6 +26,7 @@ import { ProfileComponent } from './pages/profile/profile.component';
     ProfileComponent
   ],
   imports: [
+    HttpClientModule,
     FormsModule,
     BrowserModule,
     AppRoutingModule,

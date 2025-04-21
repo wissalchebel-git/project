@@ -32,7 +32,10 @@ app.use(express.json());
 app.use(bodyParser.json());
 
 // CORS
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:4200', // Port front
+  credentials: true
+}));
 
 // Keycloak setup (uncomment when ready)
 // const keycloak = getKeycloak({ store: memoryStore });

@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-
+import { HttpClient } from '@angular/common/http';
 @Component({
   selector: 'app-evaluation',
   templateUrl: './evaluation.component.html',
@@ -8,6 +8,8 @@ import { Component } from '@angular/core';
 export class EvaluationComponent {
   answers: any = {
     projectName: '',
+    githubRepo: '',
+    githubURL: '',
     gitlabRepo: '',
     repoURL: '',
     projectObjective: '',
@@ -71,17 +73,26 @@ export class EvaluationComponent {
     alert(`Security Score: ${this.score}/100`);
   }
 
-  cloneGithubRepo() {
-    if (!this.answers.githubURL) {
-      alert("Please provide a valid GitHub repository URL.");
-      return;
+    constructor(private http: HttpClient) {}
+  
+    cloneGithubRepo() {
+      const repoUrl = this.answers.githubURL;
+  
+      if (!repoUrl) {
+        alert("Please enter a GitHub URL.");
+        return;
+      }
+  
+      this.http.post<any>('http://localhost:5000/api/git', { repoUrl }).subscribe({
+        next: (res) => {
+          console.log("✅ Cloning succeeded", res);
+          alert("✅ Repository cloned successfully!\n📁 Path: " + res.path);
+        },
+        error: (err) => {
+          console.error("❌ Cloning failed", err);
+          alert("❌ Cloning failed: " + (err.error?.error || 'Unknown error'));
+        },
+      });
     }
-  
-    // You can later integrate actual cloning via backend service
-    console.log("Cloning repository from:", this.answers.githubURL);
-    
-    // Optionally trigger a backend API:
-    // this.http.post('/api/clone', { url: this.answers.githubURL }).subscribe(...)
   }
-  
-}
+
