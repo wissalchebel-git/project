@@ -65,7 +65,7 @@ export class EvaluationComponent {
     };
   
     this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
-      next: res => alert("✅ GitLab Repo Cloned Successfully"),
+      next: res => alert(`✅ GitLab Repo Cloned Successfully!\n📁 Path: ${res.path}`),
       error: err => alert("❌ Error: " + err.error?.error)
     });
   }

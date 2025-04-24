@@ -37,8 +37,9 @@ const cloneRepository = (req, res) => {
   if (token) {
     try {
       const url = new URL(repoUrl);
-      url.username = token;
-      finalRepoUrl = url.toString().replace('https://', `https://${token}@`);
+      url.username = 'oauth2';
+      url.password = token;
+      finalRepoUrl = url.toString();
     } catch (err) {
       return res.status(400).json({ error: 'Invalid repo URL format' });
     }
