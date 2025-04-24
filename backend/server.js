@@ -37,17 +37,8 @@ app.use(cors({
   credentials: true
 }));
 
-// Keycloak setup (uncomment when ready)
-// const keycloak = getKeycloak({ store: memoryStore });
-// app.use(keycloak.middleware());
 
-// Routes (use Keycloak protection when ready)
-// app.use('/api/security-reports', keycloak.protect(), reportRoutes);
-// app.use('/api/auth', authRoutes); // public route
-// app.use('/api/users', keycloak.protect(), userRoutes);
-
-
-// Define the root route for testing
+//  route for testing
 app.get('/', (req, res) => {
   res.send('Hello, your server is running!');
 });
@@ -59,6 +50,15 @@ app.use('/api/git', gitRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
+
+// Keycloak setup 
+// const keycloak = getKeycloak({ store: memoryStore });
+// app.use(keycloak.middleware());
+
+// Routes (use Keycloak protection when ready)
+// app.use('/api/security-reports', keycloak.protect(), reportRoutes);
+// app.use('/api/auth', authRoutes); // public route
+// app.use('/api/users', keycloak.protect(), userRoutes);
 
 // Start the server
 const PORT = process.env.PORT || 5000;

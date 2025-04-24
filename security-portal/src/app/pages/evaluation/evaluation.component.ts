@@ -10,7 +10,8 @@ export class EvaluationComponent {
     projectName: '',
     githubRepo: '',
     githubURL: '',
-    gitlabRepo: '',
+    gitlabURL: '',
+    gitlabToken:'',
     repoURL: '',
     projectObjective: '',
     involvedParties: '',
@@ -39,6 +40,35 @@ export class EvaluationComponent {
     userAwareness: ''
   };
 
+
+  constructor(private http: HttpClient) {}
+  
+  cloneGithubRepo() {
+    const payload = {
+      type: 'public',
+      repoUrl: this.answers.githubURL
+    };
+    
+    console.log("📦 Payload to send:", payload);
+    
+    this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
+      next: res => alert(`✅ GitHub Repo Cloned Successfully!\n📁 Path: ${res.path}`),
+      error: err => alert("❌ Error: " + err.error?.error)
+    });
+  }
+  
+  cloneGitlabRepo() {
+    const payload = {
+      type: 'private',
+      repoUrl: this.answers.gitlabURL,
+      token: this.answers.gitlabToken
+    };
+  
+    this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
+      next: res => alert("✅ GitLab Repo Cloned Successfully"),
+      error: err => alert("❌ Error: " + err.error?.error)
+    });
+  }
   score: number = 0;
 
   calculateScore() {
@@ -73,26 +103,6 @@ export class EvaluationComponent {
     alert(`Security Score: ${this.score}/100`);
   }
 
-    constructor(private http: HttpClient) {}
-  
-    cloneGithubRepo() {
-      const repoUrl = this.answers.githubURL;
-  
-      if (!repoUrl) {
-        alert("Please enter a GitHub URL.");
-        return;
-      }
-  
-      this.http.post<any>('http://localhost:5000/api/git', { repoUrl }).subscribe({
-        next: (res) => {
-          console.log("✅ Cloning succeeded", res);
-          alert("✅ Repository cloned successfully!\n📁 Path: " + res.path);
-        },
-        error: (err) => {
-          console.error("❌ Cloning failed", err);
-          alert("❌ Cloning failed: " + (err.error?.error || 'Unknown error'));
-        },
-      });
-    }
+    
   }
 

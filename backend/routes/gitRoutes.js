@@ -2,8 +2,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { cloneRepository } = require('../controllers/gitController');
+const gitController = require('../controllers/gitController');
 
-router.post('/', cloneRepository);
+router.post('/', gitController.cloneRepository);
 
 module.exports = router;

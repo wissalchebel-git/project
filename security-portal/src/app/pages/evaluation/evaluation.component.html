@@ -12,21 +12,36 @@
                         </nb-list-item>
             
                         <nb-list-item>
-                            <p>2. Is your project hosted on GitHub?</p>
-                            <nb-radio-group [(ngModel)]="answers.githubRepo" name="githubRepo">
-                              <nb-radio value="yes">Yes</nb-radio>
-                              <nb-radio value="no">No</nb-radio>
+                            <p>2. Where is your project hosted?</p>
+                            <nb-radio-group [(ngModel)]="answers.repoType" name="repoType">
+                              <nb-radio value="public">Public GitHub Repo</nb-radio>
+                              <nb-radio value="private">Private GitLab Repo</nb-radio>
                             </nb-radio-group>
                           
-                            <!-- GitHub URL input & Clone button shown only if "yes" is selected -->
-                            <div *ngIf="answers.githubRepo === 'yes'" class="mt-2">
-                              <input nbInput placeholder="Enter GitHub repository URL" [(ngModel)]="answers.githubURL" name="githubURL">
+                            <!-- Case 1: Public GitHub repo -->
+                            <div *ngIf="answers.repoType === 'public'" class="mt-2">
+                              <input nbInput placeholder="Enter GitHub repository URL"
+                                     [(ngModel)]="answers.githubURL" name="githubURL">
                               
                               <button nbButton status="info" class="mt-1" (click)="cloneGithubRepo()">
-                                🔄 Clone Repository
+                                🔄 Clone GitHub Repository
+                              </button>
+                            </div>
+                          
+                            <!-- Case 2: Private GitLab repo -->
+                            <div *ngIf="answers.repoType === 'private'" class="mt-2">
+                              <input nbInput placeholder="Enter GitLab repository URL"
+                                     [(ngModel)]="answers.gitlabURL" name="gitlabURL">
+                          
+                              <input nbInput placeholder="Enter GitLab Access Token"
+                                     [(ngModel)]="answers.gitlabToken" name="gitlabToken" type="password" class="mt-1">
+                          
+                              <button nbButton status="warning" class="mt-1" (click)="cloneGitlabRepo()">
+                                🔒 Clone GitLab Private Repository
                               </button>
                             </div>
                           </nb-list-item>
+                          
                           
             
                         <nb-list-item>

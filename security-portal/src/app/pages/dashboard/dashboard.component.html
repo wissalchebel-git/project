@@ -1,12 +1,39 @@
 <nb-layout>
-  <nb-layout-header fixed> Security Dashboard </nb-layout-header>
+  <!-- Header Section -->
+  <nb-layout-header fixed>
+    Security Dashboard
+  </nb-layout-header>
 
   <nb-layout-column>
+    <!-- Security Scan Results Card -->
     <nb-card>
-      <nb-card-header> Security Scan Results </nb-card-header>
+      <nb-card-header>Security Scan Results</nb-card-header>
       <nb-card-body>
+        <!-- ECharts component for displaying the chart -->
         <div echarts [options]="chartOptions" class="echart"></div>
       </nb-card-body>
     </nb-card>
   </nb-layout-column>
+
+  <!-- Loading Spinner Section -->
+  <div *ngIf="isLoading" class="loading-spinner">
+    <nb-spinner></nb-spinner> <!-- Nebular Spinner component -->
+    <p>Loading chart data...</p>
+  </div>
+  
+  <!-- Error Message Section -->
+  <div *ngIf="errorMessage" class="error-message">
+    <p>{{ errorMessage }}</p>
+  </div>
+
+  <!-- Security Issues Overview Card -->
+  <nb-card *ngIf="!isLoading && !errorMessage">
+    <nb-card-header>
+      <h2>Security Issues Overview</h2>
+    </nb-card-header>
+    <nb-card-body>
+      <!-- ECharts component for displaying another chart -->
+      <div echarts [options]="chartOptions" class="chart-container"></div>
+    </nb-card-body>
+  </nb-card>
 </nb-layout>

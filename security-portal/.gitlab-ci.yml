@@ -1,52 +1,93 @@
-image: docker:latest
-
-variables:
-  DOCKER_IMAGE: "$CI_REGISTRY_USER/security-portal-frontend"
-  DOCKER_TAG: "latest"
-  DOCKER_HUB_REPO: "wchebel/security-portal-frontend"
-  FRONTEND_DIR: "frontend"
-
-services:
-  - docker:dind
-
 stages:
   - build
   - scan
   - push
   - deploy
 
-before_script:
-  - apk add --no-cache bash
-  - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+variables:
+  DOCKER_IMAGE: registry.gitlab.com/your-group/your-project
+  SONAR_PROJECT_KEY: your_project_key
+  SONAR_HOST_URL: http://your-sonarqube-url
+  SONAR_TOKEN: $SONAR_TOKEN
 
+# -------------------------
+# BUILD
+# -------------------------
 build:
   stage: build
-  image: node:20
+  image: docker:latest
+  services:
+    - docker:dind
   script:
-    - cd $FRONTEND_DIR
-    - npm install
-    - npm run build --prod
-    - tar -cvf build.tar dist/
+    - docker build -t $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA .
+  only:
+    - main
+
+# -------------------------
+# SCAN (Trivy + SonarQube + ZAP)
+# -------------------------
+
+trivy_scan:
+  stage: scan
+  image: aquasec/trivy:latest
+  script:
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA
+  allow_failure: true
+
+sonarqube_scan:
+  stage: scan
+  image: sonarsource/sonar-scanner-cli:latest
+  script:
+    - sonar-scanner \
+        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+        -Dsonar.sources=. \
+        -Dsonar.host.url=$SONAR_HOST_URL \
+        -Dsonar.login=$SONAR_TOKEN
+  only:
+    - main
+
+zap_scan:
+  stage: scan
+  image: owasp/zap2docker-stable
+  script:
+    - zap-baseline.py -t http://your-running-app-url -g gen.conf -r zap-report.html
   artifacts:
     paths:
-      - frontend/build.tar
+      - zap-report.html
+  allow_failure: true
 
-scan:
-  stage: scan
-  image: aquasec/trivy
-  script:
-    - trivy fs --exit-code 1 --severity HIGH,CRITICAL .
-
-push:
+# -------------------------
+# PUSH
+# -------------------------
+push_image:
   stage: push
+  image: docker:latest
+  services:
+    - docker:dind
   script:
-    - docker build -t $DOCKER_HUB_REPO:$DOCKER_TAG frontend/
-    - docker push $DOCKER_HUB_REPO:$DOCKER_TAG
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - docker push $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA
+  only:
+    - main
 
+# -------------------------
+# DEPLOY
+# -------------------------
 deploy:
   stage: deploy
   script:
-    - docker pull $DOCKER_HUB_REPO:$DOCKER_TAG
-    - docker stop security-portal-frontend || true
-    - docker rm security-portal-frontend || true
-    - docker run -d -p 80:80 --name security-portal-frontend $DOCKER_HUB_REPO:$DOCKER_TAG
+    - echo "Deploying your application..."
+    # Add your deploy commands here (e.g., Ansible, SSH, Kubernetes)
+  only:
+    - main
+#Remplacez les espaces réservés tels que your-group/your-project, your_project_key, your-sonarqube-url, et your-running-app-urlpar vos valeurs réelles.
+
+#S'assurer:
+
+#Votre projet comprend un Dockerfile.
+
+#Vos variables de registre ( CI_REGISTRY_USER, CI_REGISTRY_PASSWORD, etc.) sont définies dans les paramètres GitLab CI/CD.
+
+#Vous avez correctement intégré SonarQube (avec une instance et un jeton en cours d'exécution).
+
+#Votre application est déployée et accessible par ZAP

@@ -3,33 +3,60 @@
 const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const CLONE_DIR = path.join(__dirname, '..', 'cloned-repos');
+
+if (!fs.existsSync(CLONE_DIR)) {
+  fs.mkdirSync(CLONE_DIR, { recursive: true });
+}
 
 const cloneRepository = (req, res) => {
-  const repoUrl = req.body.repoUrl;
+  //console.log("🔍 Incoming request body:", req.body); 
+  const { repoUrl, token } = req.body;
 
-  // Validate the repo URL
-  if (!repoUrl || !repoUrl.startsWith("https://github.com/")) {
-    return res.status(400).json({ error: "Invalid or missing repoUrl" });
+  if (!repoUrl) {
+    return res.status(400).json({ error: 'Missing repoUrl' });
+  }
+  if (!repoUrl.startsWith('https://github.com/') && !repoUrl.startsWith('https://gitlab.com/')) {
+    return res.status(400).json({ error: 'repoUrl must start with GitHub or GitLab URL' });
   }
 
-  const projectName = repoUrl.split('/').pop().replace('.git', '');
-  const timestamp = Date.now();
-  const targetDir = path.join('/opt/projects', `${projectName}-${timestamp}`);
+  const projectName = path.basename(repoUrl, '.git');
+  const targetDir = path.join(CLONE_DIR, projectName);
 
-  // Ensure the target directory does not already exist
+  // Remove existing directory if exists
   if (fs.existsSync(targetDir)) {
-    return res.status(409).json({ error: "Directory already exists" });
+    try {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to clean old directory', details: err.message });
+    }
   }
 
-  // Run the git clone command
-   exec(`/usr/bin/git clone ${repoUrl} ${targetDir}`, (err, stdout, stderr) => {
+  // Prepare authenticated repo URL if token is provided
+  let finalRepoUrl = repoUrl;
+  if (token) {
+    try {
+      const url = new URL(repoUrl);
+      url.username = token;
+      finalRepoUrl = url.toString().replace('https://', `https://${token}@`);
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid repo URL format' });
+    }
+  }
+
+  // Clone
+  exec(`git clone ${finalRepoUrl} ${targetDir}`, (err, stdout, stderr) => {
     if (err) {
-      console.error("Git error:", stderr);
-      return res.status(500).json({ error: "Git clone failed", details: stderr });
+      console.error('Git error:', stderr);
+      return res.status(500).json({ error: 'Git clone failed', details: stderr });
     }
 
+
+    // ✅ Convert container path to relative path for frontend
+    //const relativePath = path.relative(path.join(__dirname, '..'), targetDir);
+
     return res.status(200).json({
-      message: `Repository cloned successfully into ${targetDir}`,
+      message: 'Repository cloned successfully',
       path: targetDir
     });
   });
