@@ -1,0 +1,38 @@
+#version: '3.8'
+
+services:
+  mongo:
+    image: mongo:4.4
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: security-portal
+    volumes:
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+
+  backend:
+    build: ./backend
+    container_name: pfe-backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    depends_on:
+      - mongo
+    volumes:
+      - ./backend:/usr/src/app
+    command: npm start
+
+  frontend:
+    build: ./security-portal  
+    container_name: pfe-frontend
+    ports:
+      - "4200:4200"  
+    depends_on:
+      - backend
+    volumes:
+      - ./security-portal:/usr/src/app  
+    command: npm start 

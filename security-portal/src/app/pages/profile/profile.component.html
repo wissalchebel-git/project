@@ -1,37 +1,44 @@
 <nb-card>
-    <nb-card-header>
-      <nb-user name="John Doe" title="Security Analyst" size="large"></nb-user>
-    </nb-card-header>
-  
-    <nb-card-body>
-      <!-- User Info -->
-      <nb-list>
-        <nb-list-item>
-          <strong>Email:</strong> <input nbInput type="email" [(ngModel)]="email" placeholder="Enter your email">
-        </nb-list-item>
-        <nb-list-item>
-          <strong>Password:</strong> <input nbInput type="password" [(ngModel)]="password" placeholder="Change password">
-        </nb-list-item>
-        <nb-list-item>
-          <strong>Role:</strong> 
-          <nb-select [(selected)]="role">
-            <nb-option value="admin">Admin</nb-option>
-            <nb-option value="user">User</nb-option>
-          </nb-select>
-        </nb-list-item>
-      </nb-list>
-  
-      <!-- Settings -->
-      <div class="settings">
-        <nb-toggle [(checked)]="darkMode" (checkedChange)="toggleDarkMode()"> Dark Mode </nb-toggle>
-        <nb-toggle [(checked)]="twoFactorAuth"> Enable 2FA </nb-toggle>
-      </div>
-  
-      <!-- Buttons -->
-      <div class="buttons">
-        <button nbButton status="primary" (click)="saveProfile()">Save Changes</button>
-        <button nbButton status="danger" (click)="logout()">Logout</button>
-      </div>
-    </nb-card-body>
-  </nb-card>
-  
+  <nb-card-header class="header">
+    <nb-user 
+      name="John Doe" 
+      title="Security Analyst" 
+      size="giant" 
+      picture="https://i.pravatar.cc/300" 
+      badgeText="{{ role | uppercase }}"
+      badgeStatus="info">
+    </nb-user>
+  </nb-card-header>
+
+  <nb-card-body class="body">
+    <h3 class="section-title">👤 Account Information</h3>
+    <nb-list>
+      <nb-list-item nbTooltip="Your login email" nbTooltipStatus="primary">
+        <nb-icon icon="email-outline" pack="eva"></nb-icon>
+        <input nbInput fullWidth type="email" [(ngModel)]="email" placeholder="Enter your email" />
+      </nb-list-item>
+      <nb-list-item nbTooltip="Keep your password secure" nbTooltipStatus="warning">
+        <nb-icon icon="lock-outline" pack="eva"></nb-icon>
+        <input nbInput fullWidth type="password" [(ngModel)]="password" placeholder="Change password" />
+      </nb-list-item>
+      <nb-list-item nbTooltip="Your current role" nbTooltipStatus="info">
+        <nb-icon icon="person-outline" pack="eva"></nb-icon>
+        <nb-select [(selected)]="role">
+          <nb-option value="admin">Admin</nb-option>
+          <nb-option value="user">User</nb-option>
+        </nb-select>
+      </nb-list-item>
+    </nb-list>
+
+    <h3 class="section-title">⚙️ Preferences</h3>
+    <div class="settings">
+      <nb-toggle [(checked)]="darkMode" (checkedChange)="toggleDarkMode()">Dark Mode</nb-toggle>
+      <nb-toggle [(checked)]="twoFactorAuth">Enable 2FA</nb-toggle>
+    </div>
+
+    <div class="buttons">
+      <button nbButton status="success" (click)="saveProfile()">💾 Save</button>
+      <button nbButton status="danger" (click)="logout()">🚪 Logout</button>
+    </div>
+  </nb-card-body>
+</nb-card>

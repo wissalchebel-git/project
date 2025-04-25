@@ -6,6 +6,7 @@ import { AppComponent } from './app.component';
 import { NbSpinnerModule, NbThemeModule, NbLayoutModule, NbSidebarModule, NbMenuModule, NbActionsModule, NbCardModule, NbListModule, NbToggleModule, NbAlertModule, NbUserModule, 
   NbButtonModule, NbSelectModule, NbOptionModule, NbRadioModule, NbCheckboxModule } from '@nebular/theme';
 import { NbEvaIconsModule } from '@nebular/eva-icons';
+import { NbIconModule } from '@nebular/theme';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { ReportsComponent } from './pages/reports/reports.component';
@@ -40,6 +41,7 @@ import { HttpClientModule } from '@angular/common/http';
     NbCardModule,
     NbListModule,
     NbEvaIconsModule,
+    NbIconModule ,
     NbToggleModule,
     NbAlertModule,
     NbUserModule,

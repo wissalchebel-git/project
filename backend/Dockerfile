@@ -1,9 +1,9 @@
-FROM node:18-alpine
+FROM node:18
 
 WORKDIR /app
 
 # Install git
-RUN apk add --no-cache git
+#RUN apk add --no-cache git
 
 COPY package*.json ./
 
