@@ -4,7 +4,8 @@ import { BrowserModule } from '@angular/platform-browser';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { NbSpinnerModule, NbThemeModule, NbLayoutModule, NbSidebarModule, NbMenuModule, NbActionsModule, NbCardModule, NbListModule, NbToggleModule, NbAlertModule, NbUserModule, 
-  NbButtonModule, NbSelectModule, NbOptionModule, NbRadioModule, NbCheckboxModule } from '@nebular/theme';
+  NbButtonModule, NbSelectModule, NbOptionModule, NbRadioModule, NbCheckboxModule, 
+  NbTooltipModule} from '@nebular/theme';
 import { NbEvaIconsModule } from '@nebular/eva-icons';
 import { NbIconModule } from '@nebular/theme';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
@@ -42,6 +43,7 @@ import { HttpClientModule } from '@angular/common/http';
     NbListModule,
     NbEvaIconsModule,
     NbIconModule ,
+    NbTooltipModule,
     NbToggleModule,
     NbAlertModule,
     NbUserModule,

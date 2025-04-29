@@ -1,8 +1,35 @@
 <nb-card>
-    <nb-card-header>Settings</nb-card-header>
-    <nb-card-body>
-      <nb-toggle status="success">Enable Security Scans</nb-toggle>
-      <nb-toggle status="warning">Enable Email Notifications</nb-toggle>
-    </nb-card-body>
-  </nb-card>
-  
+  <nb-card-header>
+    <div class="settings-header">
+      <nb-icon icon="settings-outline"></nb-icon>
+      <span>Settings</span>
+    </div>
+  </nb-card-header>
+
+  <nb-card-body>
+    <div class="settings-grid">
+      <div class="setting-item" *ngFor="let setting of settings">
+        <nb-toggle
+        [status]="setting.status"
+        [(checked)]="setting.enabled"
+        [nbTooltip]="setting.description"
+        nbTooltipPlacement="right"
+        nbTooltipStatus="basic">
+        {{ setting.label }}
+      </nb-toggle>
+      </div>
+    </div>
+
+    <div class="save-button-container">
+      <button 
+        nbButton 
+        status="success" 
+        appearance="outline" 
+        size="medium"
+        (click)="saveSettings()">
+        <nb-icon icon="save-outline"></nb-icon>
+        Save Settings
+      </button>
+    </div>
+  </nb-card-body>
+</nb-card>
