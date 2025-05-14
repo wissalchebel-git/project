@@ -1,15 +1,15 @@
 FROM node:18
 
-WORKDIR /app
+WORKDIR /usr/src/app
 
-# Install git
-#RUN apk add --no-cache git
+#RUN apt-get update && apt-get install -y git && 
 
 COPY package*.json ./
 
 RUN npm install
 
 COPY . .
+
 
 EXPOSE 5000
 CMD ["node", "server.js"]

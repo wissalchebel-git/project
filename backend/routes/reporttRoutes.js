@@ -4,11 +4,11 @@ const reportController = require("../controllers/reportController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { body } = require("express-validator");
 
-console.log("MIDDLEWARE:", authMiddleware); 
-console.log("CONTROLLER:", reportController);
+//console.log("MIDDLEWARE:", authMiddleware); 
+//console.log("CONTROLLER:", reportController);
 
 // Create a new scan result and auto-generate recommendations
-router.post("/scan-results",authMiddleware,
+router.post("/scan-results", authMiddleware,
   [
     body("scanId").not().isEmpty().withMessage("Scan ID is required."),
     body("vulnerability").not().isEmpty().withMessage("Vulnerability is required."),
@@ -18,6 +18,9 @@ router.post("/scan-results",authMiddleware,
   reportController.createScanResult 
 );
 
+// ✅ Receive raw scan results without validation/recommendations
+router.post("/scan-results/raw", authMiddleware, reportController.receiveScanResults);
+
 // Get all scan results
 router.get("/scan-results", authMiddleware, reportController.getAllScanResults);
 
@@ -25,7 +28,7 @@ router.get("/scan-results", authMiddleware, reportController.getAllScanResults);
 router.get("/scan-results/:id", authMiddleware, reportController.getScanResultById);
 
 // Get recommendations by scan result ID
-router.get("/scan-results/:scanResultId/recommendations", authMiddleware, reportController.getRecommendationsByScanResult); // Fixed the method name
+router.get("/scan-results/:scanResultId/recommendations", authMiddleware, reportController.getRecommendationsByScanResult);
 
 // Update scan result
 router.put("/scan-results/:id", authMiddleware, reportController.updateScanResult);

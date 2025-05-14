@@ -22,8 +22,9 @@ services:
       - .env
     depends_on:
       - mongo
-    volumes:
-      - ./backend:/usr/src/app
+    #volumes:
+      #- ./backend:/usr/src/app
+      #- /usr/src/app/node_modules
     command: npm start
 
   frontend:

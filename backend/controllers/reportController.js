@@ -187,6 +187,25 @@ const addRecommendationToScanResult = async (req, res) => {
   }
 };
 
+// Receive scan results via POST and save to DB
+const receiveScanResults = async (req, res) => {
+  console.log('Received scan results:', req.body);
+
+  try {
+    // Save directly to DB
+    const scanResult = await ScanResult.create(req.body);
+
+    res.status(201).json({
+      message: 'Scan results received and saved!',
+      scanResult
+    });
+  } catch (error) {
+    console.error('Error saving scan results:', error);
+    res.status(500).json({ message: 'Failed to save scan results', error });
+  }
+};
+
+
 module.exports = {
   createScanResult,
   getAllScanResults,
@@ -194,5 +213,6 @@ module.exports = {
   getRecommendationsByScanResult,
   updateScanResult,
   deleteScanResult,
-  addRecommendationToScanResult
+  addRecommendationToScanResult,
+  receiveScanResults 
 };

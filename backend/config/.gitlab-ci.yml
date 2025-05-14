@@ -1,0 +1,87 @@
+stages:
+  - scan
+  - post_results
+
+variables:
+  TRIVY_IMAGE: "docker.io/aquasec/trivy:latest"
+  SONAR_HOST_URL: "https://sonarcloud.io"
+  SONAR_PROJECT_KEY: "your_project_key"
+  SONAR_TOKEN: "your_sonar_token"
+  FRONTEND_URL: "https://localhost:4200"
+  BACKEND_URL: "https://localhost:5000/api/scan-results"
+
+# ------------------------------
+# 1. Trivy Scan
+# ------------------------------
+scan_trivy:
+  stage: scan
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo "🔍 Starting Trivy vulnerability scan..."
+    - apk add --no-cache curl
+    - echo "📦 Pulling alpine image for scanning..."
+    - docker pull alpine
+    - echo "🐳 Running Trivy scan on alpine image..."
+    - docker run --rm $TRIVY_IMAGE image alpine --format json --output trivy-report.json
+    - echo "✅ Trivy scan completed and report saved as trivy-report.json"
+  artifacts:
+    when: always
+    paths:
+      - trivy-report.json
+    expire_in: 1 week
+
+# ------------------------------
+# 2. SonarQube Scan
+# ------------------------------
+scan_sonar:
+  stage: scan
+  image: sonarsource/sonar-scanner-cli:latest
+  script:
+    - echo "🔍 Starting SonarQube analysis..."
+    - sonar-scanner
+        -Dsonar.projectKey=$SONAR_PROJECT_KEY
+        -Dsonar.host.url=$SONAR_HOST_URL
+        -Dsonar.login=$SONAR_TOKEN
+    - echo "✅ SonarQube scan completed."
+  artifacts:
+    when: always
+    paths:
+      - .scannerwork/report-task.txt
+    expire_in: 1 week
+
+# ------------------------------
+# 3. OWASP ZAP Scan
+# ------------------------------
+scan_zap:
+  stage: scan
+  image: owasp/zap2docker-stable
+  script:
+    - echo "🔍 Starting OWASP ZAP scan on $FRONTEND_URL ..."
+    - mkdir -p zap-report
+    - zap-baseline.py -t $FRONTEND_URL -r zap-report/report.html -J zap-report/report.json
+    - echo "✅ ZAP scan completed. Reports saved to zap-report/."
+  artifacts:
+    when: always
+    paths:
+      - zap-report/report.json
+      - zap-report/report.html
+    expire_in: 1 week
+
+# ------------------------------
+# 4. Send Results to Backend
+# ------------------------------
+send_results:
+  stage: post_results
+  image: curlimages/curl:latest
+  script:
+    - |
+      echo "📤 Sending Trivy report to backend..."
+      curl -s -o /dev/null -w "Trivy report HTTP status: %{http_code}\n" -X POST -H "Content-Type: application/json" --data-binary @trivy-report.json $BACKEND_URL
+      echo "📤 Sending ZAP report to backend..."
+      curl -s -o /dev/null -w "ZAP report HTTP status: %{http_code}\n" -X POST -H "Content-Type: application/json" --data-binary @zap-report/report.json $BACKEND_URL
+    - echo "✅ Reports successfully sent to backend."
+  dependencies:
+    - scan_trivy
+    - scan_zap
