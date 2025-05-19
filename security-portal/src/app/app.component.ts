@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { NbSidebarService } from '@nebular/theme';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-root',
@@ -18,10 +19,17 @@ export class AppComponent {
     { title: 'Settings', icon: 'settings-outline', link: '/settings' }
   ];
   
-  constructor(private sidebarService: NbSidebarService) {}
+constructor(
+  private router: Router,
+  private sidebarService: NbSidebarService
+) {}
+
+  get isLoginPage(): boolean {
+    return this.router.url === '/login';
+  }
 
   toggleSidebar(): void {
-    this.sidebarService.toggle(false, 'menu-sidebar');
-    
+    this.sidebarService.toggle(true, 'menu-sidebar');
   }
 }
+

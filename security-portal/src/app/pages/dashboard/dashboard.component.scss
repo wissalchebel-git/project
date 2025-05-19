@@ -5,7 +5,7 @@
     align-items: center;
     height: 100vh;
     font-size: 1.5rem;
-    color: #007bff; 
+    color: #FFA500; 
   }
   
   /* Error Message Styles */
@@ -27,4 +27,48 @@
     width: 100%;
     height: 400px; 
   }
+  // dashboard.component.scss - GOOD EXAMPLE
+.dashboard-container {
+  padding: 1.5rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
   
+  .stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+  }
+  
+  .stat-label {
+    font-size: 0.875rem;
+    opacity: 0.8;
+  }
+}
+
+.recent-scans {
+  .scan-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s ease;
+    }
+  }
+}

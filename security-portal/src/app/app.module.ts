@@ -17,6 +17,19 @@ import { EvaluationComponent } from './pages/evaluation/evaluation.component';
 import { NotificationsComponent } from './pages/notifications/notifications.component';
 import { ProfileComponent } from './pages/profile/profile.component';
 import { HttpClientModule } from '@angular/common/http';
+import { HeaderComponent } from './header/header.component';
+import { FooterComponent } from './footer/footer.component';
+import { LoginComponent } from './auth/login/login.component';
+import { SignupComponent } from './auth/signup/signup.component';
+import { ReactiveFormsModule } from '@angular/forms';
+// Services
+import { AuthService } from './auth.service';
+
+// Guards
+import { AuthGuard } from './auth.guard';
+import { AuthComponent } from './auth/auth.component';
+
+
 @NgModule({
   declarations: [
     AppComponent,
@@ -25,11 +38,18 @@ import { HttpClientModule } from '@angular/common/http';
     SettingsComponent,
     EvaluationComponent,
     NotificationsComponent,
-    ProfileComponent
+    ProfileComponent,
+    HeaderComponent,
+    FooterComponent,
+    LoginComponent,
+    SignupComponent,
+    AuthComponent,
   ],
   imports: [
     HttpClientModule,
+    AppRoutingModule,
     FormsModule,
+    ReactiveFormsModule,
     BrowserModule,
     AppRoutingModule,
     BrowserAnimationsModule,
@@ -56,7 +76,8 @@ import { HttpClientModule } from '@angular/common/http';
       echarts: () => import('echarts'),
     }),
   ],
-  providers: [NbSidebarModule],
+
+  providers: [NbSidebarModule, AuthService, AuthGuard],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

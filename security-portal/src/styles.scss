@@ -1,11 +1,322 @@
-@import '@nebular/theme/styles/globals';  // Global styles
-@import '@nebular/theme/styles/theming';  // Theming support
-@import '@nebular/theme/styles/themes/default';  //  Default theme
+/* src/styles.scss */
 
-// Apply the theme
-@include nb-theme-global();
 
+:root {
+  /* Your custom colors */
+  --color-orange: #FFA500;
+  --color-black: #000000;
+  --color-white: #FFFFFF;
+  --color-grey: #f0f0f0;
+  --color-green: #4CAF50;
+
+  /* Override Nebular theme colors using your palette */
+  --nb-layout-background-color: var(--color-white);
+  --nb-layout-window-mode-background-color: var(--color-white);
+  
+  /* Sidebar styling */
+  --nb-sidebar-background-color: var(--color-black);
+  --nb-sidebar-text-color: var(--color-white);
+  --nb-sidebar-text-color-active: var(--color-orange);
+  
+  /* Menu styling */
+  --nb-menu-text-color: var(--color-white);
+  --nb-menu-text-color-active: var(--color-orange);
+  --nb-menu-icon-color: var(--color-white);
+  --nb-menu-icon-color-active: var(--color-orange);
+  --nb-menu-item-hover-background-color: rgba(255, 165, 0, 0.1);
+  --nb-menu-item-active-background-color: rgba(255, 165, 0, 0.2);
+  
+  /* Header styling */
+  --nb-header-background-color: var(--color-black);
+  --nb-header-text-color: var(--color-white);
+  --nb-header-height: 4rem;
+  
+  /* Footer styling */
+  --nb-footer-background-color: var(--color-black);
+  --nb-footer-text-color: var(--color-white);
+  --nb-footer-height: 4rem;
+  
+  /* Content area */
+  --nb-layout-content-background-color: var(--color-white);
+  
+  /* Text colors */
+  --nb-text-basic-color: var(--color-black);
+  --nb-text-primary-color: var(--color-orange);
+  --nb-text-success-color: var(--color-green);
+  
+  /* Button colors */
+  --nb-button-primary-background-color: var(--color-orange);
+  --nb-button-primary-text-color: var(--color-white);
+  --nb-button-primary-hover-background-color: darken(var(--color-orange), 10%);
+  
+  /* Card styling */
+  --nb-card-background-color: var(--color-white);
+  --nb-card-text-color: var(--color-black);
+  --nb-card-border-color: var(--color-grey);
+}
+
+/* Global styles */
 body {
+  background-color: var(--color-white);
+  color: var(--color-black);
+  font-family: 'Segoe UI', sans-serif;
   margin: 0;
-  font-family: Roboto, "Helvetica Neue", sans-serif;
+  padding: 0;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+/* Override Nebular components with your theme */
+
+/* Layout styling */
+nb-layout {
+  background-color: var(--color-white) !important;
+  color: var(--color-black) !important;
+}
+
+/* Sidebar styling */
+nb-sidebar {
+  background-color: var(--color-black) !important;
+  color: var(--color-orange) !important;
+}
+
+nb-sidebar .main-container {
+  background-color: var(--color-black) !important;
+  color: var(--color-white) !important;
+}
+
+nb-sidebar .main-container .scrollable {
+  background-color: var(--color-black) !important;
+}
+
+/* Menu styling */
+nb-menu {
+  background-color: var(--color-black) !important;
+}
+
+nb-menu .menu-items {
+  background-color: var(--color-black) !important;
+}
+
+nb-menu .menu-item {
+  color: var(--color-white) !important;
+  background-color: transparent !important;
+}
+
+nb-menu .menu-item a {
+  color: var(--color-white) !important;
+  text-decoration: none;
+}
+
+nb-menu .menu-item:hover {
+  background-color: rgba(255, 165, 0, 0.1) !important;
+}
+
+nb-menu .menu-item.active {
+  background-color: rgba(255, 165, 0, 0.2) !important;
+}
+
+nb-menu .menu-item.active a {
+  color: var(--color-orange) !important;
+}
+
+nb-menu .menu-item.active nb-icon {
+  color: var(--color-orange) !important;
+}
+
+nb-menu .menu-item nb-icon {
+  color: var(--color-orange) !important;
+}
+
+/* Header styling */
+nb-layout-header {
+  background-color: var(--color-black) !important;
+  color: var(--color-white) !important;
+  border-bottom: 1px solid black;
+}
+
+nb-layout-header nav {
+  background-color: var(--color-black) !important;
+  color: var(--color-white) !important;
+}
+
+/* Footer styling */
+nb-layout-footer {
+  background-color: var(--color-black) !important;
+  color: var(--color-white) !important;
+}
+
+/* Content area */
+nb-layout-column {
+  background-color: var(--color-white) !important;
+}
+
+/* Card styling */
+nb-card {
+  background-color: var(--color-white) !important;
+  border: 1px solid var(--color-grey) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+nb-card-header {
+  background-color: var(--color-grey) !important;
+  color: var(--color-black) !important;
+  border-bottom: 1px solid #ddd !important;
+}
+
+nb-card-body {
+  background-color: var(--color-white) !important;
+  color: var(--color-black) !important;
+}
+
+/* Button styling */
+.btn-primary,
+button.btn-primary,
+nb-button.btn-primary {
+  background-color: var(--color-orange) !important;
+  border-color: var(--color-orange) !important;
+  color: var(--color-white) !important;
+}
+
+.btn-primary:hover,
+button.btn-primary:hover,
+nb-button.btn-primary:hover {
+  background-color: #e6940e !important;
+  border-color: #e6940e !important;
+}
+
+.btn-success,
+button.btn-success,
+nb-button.btn-success {
+  background-color: var(--color-green) !important;
+  border-color: var(--color-green) !important;
+  color: var(--color-white) !important;
+}
+
+/* User component in header */
+nb-user {
+  color: var(--color-black) !important;
+}
+
+nb-user .user-name {
+  color: var(--color-black) !important;
+}
+
+nb-user .user-title {
+  color: var(--color-black) !important;
+}
+
+/* Auth container styling (keeping your existing auth styles) */
+.auth-container {
+  max-width: 400px;
+  margin: 5rem auto;
+  padding: 2rem;
+  background: var(--color-grey);
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.auth-container h2 {
+  color: var(--color-orange);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.auth-container input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-black);
+  border-radius: 5px;
+  background: var(--color-white);
+  box-sizing: border-box;
+}
+
+.auth-container button {
+  width: 100%;
+  background-color: var(--color-orange);
+  color: var(--color-white);
+  border: none;
+  padding: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.auth-container button:hover {
+  background-color: #e6940e;
+}
+
+.auth-container a {
+  color: var(--color-green);
+  text-decoration: none;
+}
+
+.auth-container a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .auth-container {
+    margin: 2rem auto;
+    padding: 1.5rem;
+  }
+}
+
+/* Custom dashboard styling */
+.dashboard-card {
+  background-color: var(--color-white);
+  border: 1px solid var(--color-grey);
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem;
+}
+
+.dashboard-card-header {
+  background-color: var(--color-black);
+  color: var(--color-black);
+  padding: 1rem;
+  border-bottom: 1px solid #ddd;
+  border-radius: 10px 10px 0 0;
+}
+
+.dashboard-card-body {
+  padding: 1rem;
+  color: var(--color-black);
+}
+
+/* Status indicators */
+.status-success {
+  color: var(--color-green);
+}
+
+.status-warning {
+  color: var(--color-orange);
+}
+
+.status-danger {
+  color: #f44336;
+}
+
+/* Utility classes */
+.text-primary {
+  color: var(--color-orange) !important;
+}
+
+.text-success {
+  color: var(--color-green) !important;
+}
+
+.bg-primary {
+  background-color: var(--color-orange) !important;
+}
+
+.bg-light {
+  background-color: var(--color-grey) !important;
 }

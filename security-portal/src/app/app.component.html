@@ -1,24 +1,27 @@
-<nb-layout>
-  
+<nb-layout windowMode>
+  <!-- HEADER -->
   <nb-layout-header fixed>
-    <nb-actions size="medium">
-      <nb-action 
-        icon="menu-outline" 
-        (click)="toggleSidebar()" 
-        (keydown.enter)="toggleSidebar()" 
-        (keydown.space)="toggleSidebar()"
-        tabindex="0">
-      </nb-action>
-    </nb-actions>
-    <span>Security Dashboard</span>
+    <div class="header-content">
+      <button nbButton ghost (click)="toggleSidebar()"
+        style="color: orange; ">
+      <nb-icon icon="menu-2-outline"></nb-icon>
+      </button>
+      <span class="title">Security Portal</span>
+    </div>
   </nb-layout-header>
 
-  <nb-sidebar tag="menu-sidebar" responsive>
+  <!-- SIDEBAR -->
+  <nb-sidebar tag="menu-sidebar" state="collapsed" responsive>
     <nb-menu [items]="menuItems"></nb-menu>
   </nb-sidebar>
 
+  <!-- MAIN CONTENT -->
   <nb-layout-column>
     <router-outlet></router-outlet>
   </nb-layout-column>
 
+  <!-- FOOTER -->
+  <nb-layout-footer fixed class="custom-footer">
+    <span>© 2025 Security Portal – All rights reserved</span>
+  </nb-layout-footer>
 </nb-layout>
