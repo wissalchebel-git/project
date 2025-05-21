@@ -1,0 +1,50 @@
+
+$color-orange: #FFA500;
+$color-black: #000000;
+$color-white: #FFFFFF;
+$color-grey: #f0f0f0;
+$color-green: #4CAF50;
+
+body {
+  background-color: $color-white;
+  color: $color-black;
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  padding: 0;
+}
+.auth-container {
+  max-width: 400px;
+  margin: 5rem auto;
+  padding: 2rem;
+  background: $color-grey;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+
+  h2 {
+    color: $color-orange;
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 1rem;
+    border: 1px solid $color-black;
+    border-radius: 5px;
+    background: $color-white;
+  }
+
+  button {
+    width: 100%;
+    background-color: $color-orange;
+    color: $color-white;
+    border: none;
+    padding: 10px;
+    border-radius: 5px;
+  }
+
+  a {
+    color: $color-green;
+  }
+}

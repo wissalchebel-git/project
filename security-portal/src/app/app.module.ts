@@ -5,7 +5,7 @@ import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { NbSpinnerModule, NbThemeModule, NbLayoutModule, NbSidebarModule, NbMenuModule, NbActionsModule, NbCardModule, NbListModule, NbToggleModule, NbAlertModule, NbUserModule, 
   NbButtonModule, NbSelectModule, NbOptionModule, NbRadioModule, NbCheckboxModule, 
-  NbTooltipModule} from '@nebular/theme';
+  NbTooltipModule, NbProgressBarModule, NbBadgeModule, } from '@nebular/theme';
 import { NbEvaIconsModule } from '@nebular/eva-icons';
 import { NbIconModule } from '@nebular/theme';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
@@ -72,6 +72,8 @@ import { AuthComponent } from './auth/auth.component';
     NbOptionModule,
     NbRadioModule,
     NbCheckboxModule,
+    NbProgressBarModule,
+    NbBadgeModule,
     NgxEchartsModule.forRoot({
       echarts: () => import('echarts'),
     }),

@@ -9,13 +9,10 @@ import { Router } from '@angular/router';
   providedIn: 'root'
 })
 export class AuthService {
-  static logout() {
-    throw new Error('Method not implemented.');
-  }
   private currentUserSubject: BehaviorSubject<any>;
   public currentUser: Observable<any>;
-  private apiUrl = 'http://localhost:5000/api'; 
-
+  private apiUrl = 'http://localhost:5000'; 
+  
   constructor(
     private http: HttpClient,
     private router: Router
@@ -42,6 +39,22 @@ export class AuthService {
         }),
         catchError(error => {
           console.error('Login error:', error);
+          throw error;
+        })
+      );
+  }
+  
+  register(name: string, email: string, password: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/auth/register`, { name, email, password })
+      .pipe(
+        map(user => {
+          // Store user details and jwt token in local storage
+          localStorage.setItem('currentUser', JSON.stringify(user));
+          this.currentUserSubject.next(user);
+          return user;
+        }),
+        catchError(error => {
+          console.error('Registration error:', error);
           throw error;
         })
       );

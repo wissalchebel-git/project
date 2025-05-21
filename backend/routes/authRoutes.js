@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const authController = require("../controllers/authController");
+const auth = require("../middleware/authMiddleware");  
 
 router.get('/', (req, res) => {
     res.send('Auth route works');

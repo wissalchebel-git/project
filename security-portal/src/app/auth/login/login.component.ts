@@ -1,8 +1,8 @@
 import { Component, OnInit } from '@angular/core';
-
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from '../../auth.service';
+
 
 @Component({
   selector: 'app-login',
@@ -54,8 +54,8 @@ export class LoginComponent implements OnInit {
     this.loading = true;
     this.error = '';
 
-    // Use mockLogin for development, replace with login for production
-    this.authService.mockLogin(this.f['email'].value, this.f['password'].value)
+    // Use the actual login method for production
+    this.authService.login(this.f['email'].value, this.f['password'].value)
       .subscribe({
         next: () => {
           // Login successful, redirect to return url
@@ -66,5 +66,18 @@ export class LoginComponent implements OnInit {
           this.loading = false;
         }
       });
+      
+    /* Comment this block out or remove it when switching to the real login
+    //this.authService.mockLogin(this.f['email'].value, this.f['password'].value)
+       //.subscribe({
+         next: () => {
+           // Login successful, redirect to return url
+           this.router.navigate([this.returnUrl]);
+         },
+        error: (error) => {
+          this.error = error.error?.message || 'Login failed. Please try again.';
+          this.loading = false;
+        }
+      });*/
   }
 }

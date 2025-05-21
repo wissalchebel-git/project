@@ -1,226 +1,553 @@
-<nb-card>
+<div class="security-evaluation-container">
+  <!-- Live Risk Dashboard -->
+  <nb-card class="risk-dashboard">
+    <nb-card-header>📊 Live Risk Assessment Dashboard</nb-card-header>
+    <nb-card-body>
+      <div class="risk-overview">
+        <div class="risk-meter">
+          <h4>Global Risk Score: {{ globalRiskScore }}%</h4>
+          <nb-progress-bar [status]="getRiskStatus()" [value]="globalRiskScore"></nb-progress-bar>
+        </div>
+        
+        <div class="risk-categories">
+          <div class="risk-category" *ngFor="let category of riskCategories">
+            <span>{{ category.name }}</span>
+            <nb-badge [status]="category.status">{{ category.score }}%</nb-badge>
+          </div>
+        </div>
+      </div>
+    </nb-card-body>
+  </nb-card>
+
+  <!-- Security Assessment Form -->
+  <nb-card>
     <nb-card-header>🔐 Security Assessment Module</nb-card-header>
     <nb-card-body>
-        <form #securityForm="ngForm" (ngSubmit)="calculateScore()">
-                    <nb-card>
-                    <nb-card-header>📝 General Information</nb-card-header>
-                    <nb-card-body>
-                        <nb-list>
-                        <nb-list-item>
-                            <p>1. What is the name of your project?</p>
-                            <input nbInput placeholder="Enter project name" [(ngModel)]="answers.projectName" name="projectName" required>
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>2. Where is your project hosted?</p>
-                            <nb-radio-group [(ngModel)]="answers.repoType" name="repoType">
-                              <nb-radio value="public">Public GitHub Repo</nb-radio>
-                              <nb-radio value="private">Private GitLab Repo</nb-radio>
-                            </nb-radio-group>
-                          
-                            <!-- Case 1: Public GitHub repo -->
-                            <div *ngIf="answers.repoType === 'public'" class="mt-2">
-                              <input nbInput placeholder="Enter GitHub repository URL"
-                                     [(ngModel)]="answers.githubURL" name="githubURL">
-                              
-                              <button nbButton status="info" class="mt-1" (click)="cloneGithubRepo()">
-                                🔄 Clone GitHub Repository
-                              </button>
-                            </div>
-                          
-                            <!-- Case 2: Private GitLab repo -->
-                            <div *ngIf="answers.repoType === 'private'" class="mt-2">
-                              <input nbInput placeholder="Enter GitLab repository URL"
-                                     [(ngModel)]="answers.gitlabURL" name="gitlabURL">
-                          
-                              <input nbInput placeholder="Enter GitLab Access Token"
-                                     [(ngModel)]="answers.gitlabToken" name="gitlabToken" type="password" class="mt-1">
-                          
-                              <button nbButton status="warning" class="mt-1" (click)="cloneGitlabRepo()">
-                                🔒 Clone GitLab Private Repository
-                              </button>
-                            </div>
-                          </nb-list-item>
-                          
-                          
-            
-                        <nb-list-item>
-                            <p>3. What is the main objective of your project?</p>
-                            <textarea nbInput placeholder="Describe your project" [(ngModel)]="answers.projectObjective" name="projectObjective"></textarea>
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>4. Who are the parts involved in this project?</p>
-                            <textarea nbInput placeholder="List stakeholders" [(ngModel)]="answers.stakeholders" name="stakeholders"></textarea>
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>5. Provide your email address:</p>
-                            <input nbInput type="email" placeholder="example@domain.com" [(ngModel)]="answers.email" name="email" required>
-                        </nb-list-item>
-                        </nb-list>
-                    </nb-card-body>
-                    </nb-card>
-            
-                    
-                    <nb-card>
-                    <nb-card-header>🔎 Security Assessment</nb-card-header>
-                    <nb-card-body>
-                        <nb-list>
-                        <nb-list-item>
-                            <p>6. Do you use multi-factor authentication (MFA)?</p>
-                            <nb-radio-group [(ngModel)]="answers.mfa" name="mfa">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>7. Are your Git repositories configured with protection rules?</p>
-                            <nb-radio-group [(ngModel)]="answers.gitProtection" name="gitProtection">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>8. What security measures have you put in place?</p>
-                            
-                            <nb-checkbox value="access_control" [(ngModel)]="answers.securityMeasures.accessControl">Access Control</nb-checkbox>
-                            <nb-checkbox value="encryption" [(ngModel)]="answers.securityMeasures.encryption">Data Encryption</nb-checkbox>
-                            <nb-checkbox value="audits" [(ngModel)]="answers.securityMeasures.audits">Regular Audits</nb-checkbox>
-                            
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>9. Do you use static or dynamic analysis tools?</p>
-                            <input nbInput placeholder="Enter tool names (e.g. SonarQube, OWASP ZAP)" [(ngModel)]="answers.analysisTools" name="analysisTools">
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>10. Have you implemented automated security tests in your CI/CD pipeline?</p>
-                            <textarea nbInput placeholder="Describe the process" [(ngModel)]="answers.securityTests" name="securityTests"></textarea>
-                        </nb-list-item>
-
-                        <nb-list-item>
-                            <p>11.	Do you use software composition analysis (SCA) tools such as Snyk or OWASP Dependency-Check?</p>
-                            <nb-radio-group [(ngModel)]="answers.gitProtection" name="gitProtection">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                        </nb-list-item> 
-
-                        </nb-list>
-                    </nb-card-body>
-                    </nb-card>
-            
-                    <!-- Vulnerability Identification -->
-                    <nb-card>
-                    <nb-card-header>🚨 Vulnerabilities Identification</nb-card-header>
-                    <nb-card-body>
-                        <nb-list>
-                        <nb-list-item>
-                            <p>12. Do you regularly perform vulnerability scans?</p>
-                            <nb-radio-group [(ngModel)]="answers.vulnerabilityScans" name="vulnerabilityScans">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>13. Have you already identified any vulnerabilities?</p>
-                            <nb-radio-group [(ngModel)]="answers.identifiedVulnerabilities" name="identifiedVulnerabilities">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                            <textarea *ngIf="answers.identifiedVulnerabilities === 'yes'" nbInput placeholder="Describe how you handled them" [(ngModel)]="answers.vulnerabilityHandling" name="vulnerabilityHandling"></textarea>
-                        </nb-list-item>    
-                        
-                        <nb-list-item>
-                            <p>14. What is the frequency of your security updates and patches?</p>
-                            <input nbInput placeholder="e.g., Weekly, Monthly" [(ngModel)]="answers.securityUpdates" name="securityUpdates">
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>15. Do you have monitoring tools to detect attacks in real-time?</p>
-                            <nb-radio-group [(ngModel)]="answers.monitoringTools" name="monitoringTools">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>16. Do you manage secrets and credentials securely?</p>
-                            <nb-radio-group [(ngModel)]="answers.secretsManagement" name="secretsManagement">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>17. Do you have a contingency plan in the event of a security breach?</p>
-                            <nb-radio-group [(ngModel)]="answers.contingencyPlan" name="contingencyPlan">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                        </nb-list-item>
-                        </nb-list>
-                    </nb-card-body>
-                    </nb-card>    
-
-                    <!-- Compliance & Training -->
-                    <nb-card>
-                    <nb-card-header>📜 Compliance & Training</nb-card-header>
-                    <nb-card-body>
-                        <nb-list>
-                        <nb-list-item>
-                            <p>18. Does your project comply with any security standards?</p>
-                            <input nbInput placeholder="Enter standards (e.g. RGPD, ISO 27001)" [(ngModel)]="answers.complianceStandards" name="complianceStandards">
-                        </nb-list-item>
-            
-                        <nb-list-item>
-                            <p>19. Have you carried out a risk assessment?</p>
-                            <nb-radio-group [(ngModel)]="answers.riskAssessment" name="riskAssessment">
-                            <nb-radio value="yes">Yes</nb-radio>
-                            <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                        </nb-list-item>
-                        </nb-list>
-                    </nb-card-body>
-                    </nb-card>
-
-                    <!-- Awareness and Training -->
-                    <nb-card>
-                        <nb-card-header>📚 Awareness and Training</nb-card-header>
-                        <nb-card-body>
-                        <nb-list>
-                            <nb-list-item>
-                            <p>20. Do your team members receive regular training on application security?</p>
-                            <nb-radio-group [(ngModel)]="answers.securityTraining" name="securityTraining">
-                                <nb-radio value="yes">Yes</nb-radio>
-                                <nb-radio value="no">No</nb-radio>
-                            </nb-radio-group>
-                            <div *ngIf="answers.securityTraining === 'yes'">
-                                <p>➡️ If so, what is the frequency and content of this training?</p>
-                                <input nbInput placeholder="e.g., Monthly - Secure Coding, OWASP Top 10" [(ngModel)]="answers.trainingFrequency" name="trainingFrequency">
-                            </div>
-                            </nb-list-item>
-
-                            <nb-list-item>
-                            <p>21. How do you make end-users aware of good security practices?</p>
-                            <textarea nbInput placeholder="Describe your awareness strategy" [(ngModel)]="answers.userAwareness" name="userAwareness"></textarea>
-                            </nb-list-item>
-                        </nb-list>
-                        </nb-card-body>
-                
-                    
-                    <button nbButton status="primary" type="submit">Submit Evaluation</button>
-            
-                    <!-- Display Score -->
-                    <div *ngIf="score !== null">
-                    <nb-alert status="success" *ngIf="score >= 80">✅ Great Security Posture! (Score: {{ score }}%)</nb-alert>
-                    <nb-alert status="warning" *ngIf="score >= 50 && score < 80">⚠️ Moderate Security Level (Score: {{ score }}%)</nb-alert>
-                    <nb-alert status="danger" *ngIf="score < 50">❌ High Risk! Improve Security (Score: {{ score }}%)</nb-alert>
-                    </div>
-  
+      <form #securityForm="ngForm" (ngSubmit)="generateFinalReport()">
         
+        <!-- General Information -->
+        <nb-card>
+          <nb-card-header>📝 General Information</nb-card-header>
+          <nb-card-body>
+            <nb-list>
+              <nb-list-item>
+                <p>1. What is the name of your project?</p>
+                <input nbInput placeholder="Enter project name" 
+                       [(ngModel)]="answers.projectName" 
+                       name="projectName" 
+                       (ngModelChange)="onAnswerChange('projectName', $event)"
+                       required>
+                <div class="risk-indicator" *ngIf="currentQuestionRisk['projectName']">
+                  <nb-alert [status]="currentQuestionRisk['projectName'].status">
+                      {{ currentQuestionRisk['projectName'].message }}
+                    </nb-alert>
+                </div>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>2. Where is your project hosted?</p>
+                <nb-radio-group [(ngModel)]="answers.repoType" 
+                                name="repoType"
+                                (ngModelChange)="onAnswerChange('repoType', $event)">
+                  <nb-radio value="public">Public GitHub Repo</nb-radio>
+                  <nb-radio value="private">Private GitLab Repo</nb-radio>
+                </nb-radio-group>
+                
+                <!-- Repository Details -->
+                <div *ngIf="answers.repoType === 'public'" class="mt-2">
+                  <input nbInput placeholder="Enter GitHub repository URL"
+                         [(ngModel)]="answers.githubURL" 
+                         name="githubURL"
+                         (ngModelChange)="onAnswerChange('githubURL', $event)">
+                  <button nbButton status="info" class="mt-1" (click)="analyzeRepository('github')">
+                    🔄 Analyze GitHub Repository
+                  </button>
+                </div>
+                
+                <div *ngIf="answers.repoType === 'private'" class="mt-2">
+                  <input nbInput placeholder="Enter GitLab repository URL"
+                         [(ngModel)]="answers.gitlabURL" 
+                         name="gitlabURL"
+                         (ngModelChange)="onAnswerChange('gitlabURL', $event)">
+                  <input nbInput placeholder="Enter GitLab Access Token"
+                         [(ngModel)]="answers.gitlabToken" 
+                         name="gitlabToken" 
+                         type="password" 
+                         class="mt-1"
+                         (ngModelChange)="onAnswerChange('gitlabToken', $event)">
+                  <button nbButton status="warning" class="mt-1" (click)="analyzeRepository('gitlab')">
+                    🔒 Analyze GitLab Private Repository
+                  </button>
+                </div>
+                
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['repoType']">
+            <nb-alert [status]="currentQuestionRisk['repoType'].status">
+              {{ currentQuestionRisk['repoType'].message }}
+            </nb-alert>
+        </div>
+
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>3. What is the main objective of your project?</p>
+                <textarea nbInput placeholder="Describe your project" 
+                          [(ngModel)]="answers.projectObjective" 
+                          name="projectObjective"
+                          (ngModelChange)="onAnswerChange('projectObjective', $event)"></textarea>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>4. Who are the parties involved in this project?</p>
+                <textarea nbInput placeholder="List stakeholders" 
+                          [(ngModel)]="answers.stakeholders" 
+                          name="stakeholders"
+                          (ngModelChange)="onAnswerChange('stakeholders', $event)"></textarea>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>5. Provide your email address:</p>
+                <input nbInput type="email" placeholder="example@domain.com" 
+                       [(ngModel)]="answers.email" 
+                       name="email" 
+                       (ngModelChange)="onAnswerChange('email', $event)"
+                       required>
+              </nb-list-item>
+            </nb-list>
+          </nb-card-body>
+        </nb-card>
+
+        <!-- Security Assessment -->
+        <nb-card>
+          <nb-card-header>🔎 Security Assessment</nb-card-header>
+          <nb-card-body>
+            <nb-list>
+              <nb-list-item>
+                <p>6. Do you use multi-factor authentication (MFA)?</p>
+                <nb-radio-group [(ngModel)]="answers.mfa" 
+                                name="mfa"
+                                (ngModelChange)="onAnswerChange('mfa', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+            <div class="risk-indicator" *ngIf="currentQuestionRisk['mfa']">
+                <nb-alert [status]="currentQuestionRisk['mfa'].status">
+                    <strong>Risk Impact:</strong> {{ currentQuestionRisk['mfa'].message }}
+                    <br><strong>Consequence:</strong> {{ currentQuestionRisk['mfa'].consequence }}
+                    <br><strong>Recommendation:</strong> {{ currentQuestionRisk['mfa'].recommendation }}
+                </nb-alert>
+            </div>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>7. Are your Git repositories configured with protection rules?</p>
+                <nb-radio-group [(ngModel)]="answers.gitProtection" 
+                                name="gitProtection"
+                                (ngModelChange)="onAnswerChange('gitProtection', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+                <div class="risk-indicator" *ngIf="currentQuestionRisk['gitProtection']">
+                  <nb-alert [status]="currentQuestionRisk['gitProtection'].status">
+                    <strong>Risk Impact:</strong> {{ currentQuestionRisk['gitProtection'].message }}
+                    <br><strong>Consequence:</strong> {{ currentQuestionRisk['gitProtection'].consequence }}
+                    <br><strong>Recommendation:</strong> {{ currentQuestionRisk['gitProtection'].recommendation }}
+                  </nb-alert>
+                </div>
+
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>8. What security measures have you put in place?</p>
+                <nb-checkbox [(ngModel)]="answers.securityMeasures.accessControl"
+                             (ngModelChange)="onSecurityMeasureChange('accessControl', $event)">
+                  Access Control
+                </nb-checkbox>
+                <nb-checkbox [(ngModel)]="answers.securityMeasures.encryption"
+                             (ngModelChange)="onSecurityMeasureChange('encryption', $event)">
+                  Data Encryption
+                </nb-checkbox>
+                <nb-checkbox [(ngModel)]="answers.securityMeasures.audits"
+                             (ngModelChange)="onSecurityMeasureChange('audits', $event)">
+                  Regular Audits
+                </nb-checkbox>
+                <div class="risk-indicator" *ngIf="currentQuestionRisk['securityMeasures']">
+                  <nb-alert [status]="currentQuestionRisk['securityMeasures'].status">
+                    {{ currentQuestionRisk['securityMeasures'].message }}
+                  </nb-alert>
+                </div>
+
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>9. Do you use static or dynamic analysis tools?</p>
+                <input nbInput placeholder="Enter tool names (e.g. SonarQube, OWASP ZAP)" 
+                       [(ngModel)]="answers.analysisTools" 
+                       name="analysisTools"
+                       (ngModelChange)="onAnswerChange('analysisTools', $event)">
+                <div class="risk-indicator" *ngIf="currentQuestionRisk['analysisTools']">
+                  <nb-alert [status]="currentQuestionRisk['analysisTools'].status">
+                      {{ currentQuestionRisk['analysisTools'].message }}
+                  </nb-alert>
+                </div>
+
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>10. Have you implemented automated security tests in your CI/CD pipeline?</p>
+                <textarea nbInput placeholder="Describe the process" 
+                          [(ngModel)]="answers.securityTests" 
+                          name="securityTests"
+                          (ngModelChange)="onAnswerChange('securityTests', $event)"></textarea>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>11. Do you use software composition analysis (SCA) tools such as Snyk or OWASP Dependency-Check?</p>
+                <nb-radio-group [(ngModel)]="answers.scaTools" 
+                                name="scaTools"
+                                (ngModelChange)="onAnswerChange('scaTools', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+                <div class="risk-indicator" *ngIf="currentQuestionRisk['scaTools']">
+                  <nb-alert [status]="currentQuestionRisk['scaTools'].status">
+                    {{ currentQuestionRisk['scaTools'].message }}
+                  </nb-alert>
+                </div>
+              </nb-list-item>
+            </nb-list>
+          </nb-card-body>
+        </nb-card>
+
+        <!-- Vulnerability Identification -->
+        <nb-card>
+          <nb-card-header>🚨 Vulnerabilities Identification</nb-card-header>
+          <nb-card-body>
+            <nb-list>
+              <nb-list-item>
+                <p>12. Do you regularly perform vulnerability scans?</p>
+                <nb-radio-group [(ngModel)]="answers.vulnerabilityScans" 
+                                name="vulnerabilityScans"
+                                (ngModelChange)="onAnswerChange('vulnerabilityScans', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>13. Have you already identified any vulnerabilities?</p>
+                <nb-radio-group [(ngModel)]="answers.identifiedVulnerabilities" 
+                                name="identifiedVulnerabilities"
+                                (ngModelChange)="onAnswerChange('identifiedVulnerabilities', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+                <textarea *ngIf="answers.identifiedVulnerabilities === 'yes'" 
+                          nbInput placeholder="Describe how you handled them" 
+                          [(ngModel)]="answers.vulnerabilityHandling" 
+                          name="vulnerabilityHandling"></textarea>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>14. What is the frequency of your security updates and patches?</p>
+                <input nbInput placeholder="e.g., Weekly, Monthly" 
+                       [(ngModel)]="answers.securityUpdates" 
+                       name="securityUpdates"
+                       (ngModelChange)="onAnswerChange('securityUpdates', $event)">
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>15. Do you have monitoring tools to detect attacks in real-time?</p>
+                <nb-radio-group [(ngModel)]="answers.monitoringTools" 
+                                name="monitoringTools"
+                                (ngModelChange)="onAnswerChange('monitoringTools', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>16. Do you manage secrets and credentials securely?</p>
+                <nb-radio-group [(ngModel)]="answers.secretsManagement" 
+                                name="secretsManagement"
+                                (ngModelChange)="onAnswerChange('secretsManagement', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>17. Do you have a contingency plan in the event of a security breach?</p>
+                <nb-radio-group [(ngModel)]="answers.contingencyPlan" 
+                                name="contingencyPlan"
+                                (ngModelChange)="onAnswerChange('contingencyPlan', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+              </nb-list-item>
+            </nb-list>
+          </nb-card-body>
+        </nb-card>
+
+        <!-- Compliance & Training -->
+        <nb-card>
+          <nb-card-header>📜 Compliance & Training</nb-card-header>
+          <nb-card-body>
+            <nb-list>
+              <nb-list-item>
+                <p>18. Does your project comply with any security standards?</p>
+                <input nbInput placeholder="Enter standards (e.g. GDPR, ISO 27001)" 
+                       [(ngModel)]="answers.complianceStandards" 
+                       name="complianceStandards"
+                       (ngModelChange)="onAnswerChange('complianceStandards', $event)">
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>19. Have you carried out a risk assessment?</p>
+                <nb-radio-group [(ngModel)]="answers.riskAssessment" 
+                                name="riskAssessment"
+                                (ngModelChange)="onAnswerChange('riskAssessment', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>20. Do your team members receive regular training on application security?</p>
+                <nb-radio-group [(ngModel)]="answers.securityTraining" 
+                                name="securityTraining"
+                                (ngModelChange)="onAnswerChange('securityTraining', $event)">
+                  <nb-radio value="yes">Yes</nb-radio>
+                  <nb-radio value="no">No</nb-radio>
+                </nb-radio-group>
+                <div *ngIf="answers.securityTraining === 'yes'">
+                  <p>➡️ If so, what is the frequency and content of this training?</p>
+                  <input nbInput placeholder="e.g., Monthly - Secure Coding, OWASP Top 10" 
+                         [(ngModel)]="answers.trainingFrequency" 
+                         name="trainingFrequency">
+                </div>
+              </nb-list-item>
+
+              <nb-list-item>
+                <p>21. How do you make end-users aware of good security practices?</p>
+                <textarea nbInput placeholder="Describe your awareness strategy" 
+                          [(ngModel)]="answers.userAwareness" 
+                          name="userAwareness"></textarea>
+              </nb-list-item>
+            </nb-list>
+          </nb-card-body>
+        </nb-card>
+
+        <button nbButton status="primary" type="submit">Generate Final Risk Report</button>
+      </form>
+    </nb-card-body>
+  </nb-card>
+
+  <!-- Risk Matrix Visualization -->
+  <nb-card class="risk-matrix" *ngIf="showRiskMatrix">
+    <nb-card-header>🗺️ Risk Cartography</nb-card-header>
+    <nb-card-body>
+      <div class="matrix-container">
+        <div class="matrix-grid">
+          <div class="matrix-header">
+            <span></span>
+            <span>Low Impact</span>
+            <span>Medium Impact</span>
+            <span>High Impact</span>
+            <span>Critical Impact</span>
+          </div>
+          <div class="matrix-row" *ngFor="let probability of probabilityLevels">
+            <span class="probability-label">{{ probability.label }}</span>
+            <div class="matrix-cell" 
+                 *ngFor="let impact of impactLevels"
+                 [ngClass]="getCellClass(probability.value, impact.value)"
+                 (click)="showRisksInCell(probability.value, impact.value)">
+              <div class="risk-count">{{ getRiskCountInCell(probability.value, impact.value) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nb-card-body>
+  </nb-card>
+
+  <!-- Action Plan -->
+  <nb-card class="action-plan" *ngIf="actionPlan.length > 0">
+    <nb-card-header>📋 Personalized Action Plan</nb-card-header>
+    <nb-card-body>
+      <nb-list>
+        <nb-list-item *ngFor="let action of actionPlan; let i = index">
+          <div class="action-item">
+            <h5>{{ i + 1 }}. {{ action.title }}</h5>
+            <p><strong>Priority:</strong> 
+              <nb-badge [status]="action.priority">{{ action.priority }}</nb-badge>
+            </p>
+            <p><strong>Description:</strong> {{ action.description }}</p>
+            <p><strong>Timeline:</strong> {{ action.timeline }}</p>
+            <p><strong>Resources:</strong> {{ action.resources }}</p>
+            <nb-checkbox [(ngModel)]="action.completed">Mark as completed</nb-checkbox>
+          </div>
+        </nb-list-item>
+      </nb-list>
+    </nb-card-body>
+  </nb-card>
+
+  <!-- Export Options -->
+  <nb-card class="export-options" *ngIf="finalReport">
+    <nb-card-header>📤 Export Options</nb-card-header>
+    <nb-card-body>
+      <button nbButton status="info" (click)="exportToPDF()">
+        📄 Export to PDF
+      </button>
+      <button nbButton status="success" (click)="exportToExcel()">
+        📊 Export to Excel
+      </button>
+      <button nbButton status="warning" (click)="sendEmailReport()">
+        📧 Send Email Report
+      </button>
+    </nb-card-body>
+  </nb-card>
+</div>
+
+<style>
+.security-evaluation-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.risk-dashboard {
+  position: sticky;
+  top: 20px;
+  z-index: 100;
+  margin-bottom: 20px;
+}
+
+.risk-overview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.risk-meter {
+  flex: 1;
+  margin-right: 20px;
+}
+
+.risk-categories {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.risk-category {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.risk-indicator {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.matrix-container {
+  overflow-x: auto;
+}
+
+.matrix-grid {
+  display: grid;
+  grid-template-columns: 120px repeat(4, 1fr);
+  gap: 2px;
+  min-width: 600px;
+}
+
+.matrix-header {
+  display: contents;
+  font-weight: bold;
+}
+
+.matrix-row {
+  display: contents;
+}
+
+.probability-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e9ecef;
+  padding: 15px;
+  font-weight: bold;
+}
+
+.matrix-cell {
+  height: 80px;
+  border: 1px solid #dee2e6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.matrix-cell:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.matrix-cell.low { background-color: #d4edda; }
+.matrix-cell.medium { background-color: #fff3cd; }
+.matrix-cell.high { background-color: #f8d7da; }
+.matrix-cell.critical { background-color: #d1ecf1; }
+
+.risk-count {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.action-item {
+  padding: 15px;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.action-item h5 {
+  margin-bottom: 10px;
+  color: #495057;
+}
+
+.export-options {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.export-options button {
+  margin: 0 10px;
+}
+
+nb-list-item {
+  padding: 15px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+nb-list-item:last-child {
+  border-bottom: none;
+}
+
+nb-radio-group {
+  display: flex;
+  gap: 20px;
+  margin: 10px 0;
+}
+
+nb-checkbox {
+  display: block;
+  margin: 8px 0;
+}
+
+.mt-1 { margin-top: 5px; }
+.mt-2 { margin-top: 10px; }
+</style>

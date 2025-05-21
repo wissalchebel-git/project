@@ -1,17 +1,22 @@
+
 <nb-layout windowMode>
   <!-- HEADER -->
-  <nb-layout-header fixed>
+  <nb-layout-header fixed *ngIf="!hideLayout">
     <div class="header-content">
-      <button nbButton ghost (click)="toggleSidebar()"
-        style="color: orange; ">
-      <nb-icon icon="menu-2-outline"></nb-icon>
+      <div class="navbar-brand">
+        <a class="navbar-item" title="Home" href="login">
+          <img src="src/app/image/logo.png" alt="Orange Logo">
+        </a>
+      </div>
+      <button nbButton ghost (click)="toggleSidebar()" style="color: orange ">
+        <nb-icon icon="menu-2-outline"></nb-icon>
       </button>
       <span class="title">Security Portal</span>
     </div>
   </nb-layout-header>
 
   <!-- SIDEBAR -->
-  <nb-sidebar tag="menu-sidebar" state="collapsed" responsive>
+  <nb-sidebar tag="menu-sidebar" state="collapsed" responsive *ngIf="!hideLayout">
     <nb-menu [items]="menuItems"></nb-menu>
   </nb-sidebar>
 
@@ -19,9 +24,11 @@
   <nb-layout-column>
     <router-outlet></router-outlet>
   </nb-layout-column>
+  
+
 
   <!-- FOOTER -->
-  <nb-layout-footer fixed class="custom-footer">
+  <nb-layout-footer fixed class="custom-footer" *ngIf="!hideLayout">
     <span>© 2025 Security Portal – All rights reserved</span>
   </nb-layout-footer>
 </nb-layout>
