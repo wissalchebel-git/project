@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { Observable } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class GitService {
@@ -7,7 +8,15 @@ export class GitService {
 
   constructor(private http: HttpClient) {}
 
-  cloneRepo(repoUrl: string) {
-    return this.http.post(this.baseUrl, { repoUrl });
+  cloneRepo(repoUrl: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}`, { repoUrl });
+  }
+
+  createGitLabProjectAndPush(repoUrl: string, token: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/gitlab-push`, { repoUrl, token });
+  }
+
+  saveScanResult(result: any): Observable<any> {
+    return this.http.post(`${this.baseUrl}/scan-results`, result);
   }
 }

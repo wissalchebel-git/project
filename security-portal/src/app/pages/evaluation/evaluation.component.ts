@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import * as jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
+import { GitService } from '../../git.service';
 
 class SecurityAnswers {
   projectName: string = '';
@@ -109,8 +110,9 @@ export class EvaluationComponent implements OnInit {
 
   // Repository Analysis
   repositoryAnalysis: any = null;
-
-  constructor(private http: HttpClient) {}
+  
+  automatedScanInProgress: boolean = false;
+  constructor(private http: HttpClient, private gitService: GitService) {}
 
   ngOnInit(): void {
     this.updateGlobalRiskScore();
@@ -336,10 +338,12 @@ export class EvaluationComponent implements OnInit {
     return 'danger';
   }
 
-  // Repository Analysis
+// Repository Analysis with Automated Scanning
   analyzeRepository(type: 'github' | 'gitlab'): void {
     const url = type === 'github' ? this.answers.githubURL : this.answers.gitlabURL;
     if (!url) return;
+
+    this.automatedScanInProgress = true;
 
     // Mock repository analysis - In real implementation, this would call an actual API
     setTimeout(() => {
@@ -357,10 +361,104 @@ export class EvaluationComponent implements OnInit {
       
       // Update risk assessment based on repository analysis
       this.updateRiskFromRepositoryAnalysis();
+
+      // If it's a GitLab repository, trigger automated scanning
+      if (type === 'gitlab' && this.answers.gitlabURL && this.answers.gitlabToken) {
+        this.startAutomatedScan();
+      } else {
+        this.automatedScanInProgress = false;
+      }
     }, 2000);
   }
 
-  analyzeGitHubRepo(url: string): any {
+  // Start the automated scanning process
+  startAutomatedScan(): void {
+    console.log('🚀 Starting automated security scan...');
+    
+    // Step 1: Create GitLab project and push
+    this.createGitLabProjectAndPush();
+    
+    // Step 2: Wait for CI pipeline to complete (simulated delay)
+    setTimeout(() => {
+      this.saveScanResults();
+      this.automatedScanInProgress = false;
+    }, 10000); // 10 second delay to simulate CI pipeline execution
+  }
+
+  // Create GitLab project and push repository
+  createGitLabProjectAndPush() {
+    const payload = {
+      repoUrl: this.answers.gitlabURL,
+      token: this.answers.gitlabToken
+    };
+    
+    console.log("📦 Creating GitLab project and pushing...", payload);
+    
+    this.http.post<any>('http://localhost:5000/api/git/gitlab-push', payload).subscribe({
+      next: res => {
+        console.log(`✅ Project Created & Pushed to GitLab! URL: ${res.gitlabUrl}`);
+        alert(`🚀 Project Created & Pushed to GitLab!\n🌐 URL: ${res.gitlabUrl}`);
+        
+        // Update repository analysis with GitLab project info
+        if (this.repositoryAnalysis) {
+          this.repositoryAnalysis.gitlabProjectUrl = res.gitlabUrl;
+          this.repositoryAnalysis.automatedScanTriggered = true;
+        }
+      },
+      error: err => {
+        console.error("❌ Push Error:", err);
+        alert("❌ Push Error: " + err.error?.error);
+        this.automatedScanInProgress = false;
+      }
+    });
+  }
+
+  // Save scan results
+  saveScanResults() {
+    const result = {
+      repoUrl: this.answers.gitlabURL,
+      timestamp: new Date().toISOString(),
+      resultSummary: 'Automated security scan completed',
+      status: 'Completed',
+      findings: {
+        vulnerabilities: this.repositoryAnalysis?.findings?.vulnerabilities || 0,
+        secrets: this.repositoryAnalysis?.findings?.secrets || 0,
+        dependencies: this.repositoryAnalysis?.findings?.dependencies || 0
+      }
+    };
+    
+    console.log("💾 Saving scan results...", result);
+    
+    this.http.post<any>('http://localhost:5000/api/git/scan-results', result).subscribe({
+      next: res => {
+        console.log("✅ Scan results saved successfully!");
+        alert("✅ Automated scan completed and results saved successfully!");
+        
+        // Store scan results for display
+    this.gitService.saveScanResult(result).subscribe({
+      next: (res) => {
+        console.log('Scan result saved:', res);
+        // You can use this data however you want
+      },
+      error: (err) => {
+        console.error('Error saving scan result:', err);
+      }
+    });
+        
+        // Update repository analysis with scan results
+        if (this.repositoryAnalysis) {
+          this.repositoryAnalysis.automatedScanResults = this.saveScanResults;
+          this.repositoryAnalysis.scanCompleted = true;
+        }
+      },
+      error: err => {
+        console.error("❌ Failed to save scan results:", err);
+        alert("❌ Failed to save scan results: " + err.error?.error);
+      }
+    });
+  }
+
+    analyzeGitHubRepo(url: string): any {
     // Mock GitHub API analysis
     return {
       totalBranches: Math.floor(Math.random() * 10) + 1,
@@ -379,6 +477,35 @@ export class EvaluationComponent implements OnInit {
       contributors: Math.floor(Math.random() * 5) + 1
     };
   }
+
+  cloneGithubRepo() {
+    const payload = {
+      type: 'public',
+      repoUrl: this.answers.githubURL
+    };
+    
+    console.log("📦 Payload to send:", payload);
+    
+    this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
+      next: res => alert(`✅ GitHub Repo Cloned Successfully!\n📁 Path: ${res.path}`),
+      error: err => alert("❌ Error: " + err.error?.error)
+    });
+  }
+  
+  cloneGitlabRepo() {
+    const payload = {
+      type: 'private',
+      repoUrl: this.answers.gitlabURL,
+      token: this.answers.gitlabToken
+    };
+  
+    this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
+      next: res => alert(`✅ GitLab Repo Cloned Successfully!\n📁 Path: ${res.path}`),
+      error: err => alert("❌ Error: " + err.error?.error)
+    });
+  }
+
+
 
   generateRepositoryRecommendations(): string[] {
     const recommendations = [
@@ -668,8 +795,6 @@ ${this.actionPlan.filter(action => action.priority === 'high').map((action, inde
 
 Please find the detailed report attached.
 
-Best regards,
-Security Assessment Team
     `;
   }
 }

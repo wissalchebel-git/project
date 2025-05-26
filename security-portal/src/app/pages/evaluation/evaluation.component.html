@@ -44,49 +44,66 @@
                 </div>
               </nb-list-item>
 
-              <nb-list-item>
-                <p>2. Where is your project hosted?</p>
-                <nb-radio-group [(ngModel)]="answers.repoType" 
-                                name="repoType"
-                                (ngModelChange)="onAnswerChange('repoType', $event)">
-                  <nb-radio value="public">Public GitHub Repo</nb-radio>
-                  <nb-radio value="private">Private GitLab Repo</nb-radio>
-                </nb-radio-group>
-                
-                <!-- Repository Details -->
-                <div *ngIf="answers.repoType === 'public'" class="mt-2">
-                  <input nbInput placeholder="Enter GitHub repository URL"
-                         [(ngModel)]="answers.githubURL" 
-                         name="githubURL"
-                         (ngModelChange)="onAnswerChange('githubURL', $event)">
-                  <button nbButton status="info" class="mt-1" (click)="analyzeRepository('github')">
-                    🔄 Analyze GitHub Repository
-                  </button>
-                </div>
-                
-                <div *ngIf="answers.repoType === 'private'" class="mt-2">
-                  <input nbInput placeholder="Enter GitLab repository URL"
-                         [(ngModel)]="answers.gitlabURL" 
-                         name="gitlabURL"
-                         (ngModelChange)="onAnswerChange('gitlabURL', $event)">
-                  <input nbInput placeholder="Enter GitLab Access Token"
-                         [(ngModel)]="answers.gitlabToken" 
-                         name="gitlabToken" 
-                         type="password" 
-                         class="mt-1"
-                         (ngModelChange)="onAnswerChange('gitlabToken', $event)">
-                  <button nbButton status="warning" class="mt-1" (click)="analyzeRepository('gitlab')">
-                    🔒 Analyze GitLab Private Repository
-                  </button>
-                </div>
-                
-        <div class="risk-indicator" *ngIf="currentQuestionRisk['repoType']">
-            <nb-alert [status]="currentQuestionRisk['repoType'].status">
-              {{ currentQuestionRisk['repoType'].message }}
-            </nb-alert>
-        </div>
+<nb-list-item>
+  <p>2. Where is your project hosted?</p>
 
-              </nb-list-item>
+  <!-- Radio group -->
+  <nb-radio-group [(ngModel)]="answers.repoType" 
+                  name="repoType"
+                  (ngModelChange)="onAnswerChange('repoType', $event)">
+    <nb-radio value="public">Public GitHub Repo</nb-radio>
+    <nb-radio value="private">Private GitLab Repo</nb-radio>
+  </nb-radio-group>
+
+  <!-- Public GitHub -->
+  <div *ngIf="answers.repoType === 'public'" class="mt-2">
+    <input nbInput placeholder="Enter GitHub repository URL"
+           [(ngModel)]="answers.githubURL" 
+           name="githubURL"
+           (ngModelChange)="onAnswerChange('githubURL', $event)">
+    
+    <div class="mt-1">
+      <button nbButton status="info" (click)="cloneGithubRepo()">
+        🔄 Clone GitHub Repo
+      </button>
+      <button nbButton status="success" class="ml-1" (click)="analyzeRepository('github')">
+        📊 Analyze GitHub Repo
+      </button>
+    </div>
+  </div>
+
+  <!-- Private GitLab -->
+  <div *ngIf="answers.repoType === 'private'" class="mt-2">
+    <input nbInput placeholder="Enter GitLab repository URL"
+           [(ngModel)]="answers.gitlabURL" 
+           name="gitlabURL"
+           (ngModelChange)="onAnswerChange('gitlabURL', $event)">
+    
+    <input nbInput placeholder="Enter GitLab Access Token"
+           [(ngModel)]="answers.gitlabToken" 
+           name="gitlabToken" 
+           type="password" 
+           class="mt-1"
+           (ngModelChange)="onAnswerChange('gitlabToken', $event)">
+
+    <div class="mt-1">
+      <button nbButton status="warning" (click)="cloneGitlabRepo()">
+        🔒 Clone GitLab Repo
+      </button>
+      <button nbButton status="success" class="ml-1" (click)="analyzeRepository('gitlab')">
+        📊 Analyze GitLab Repo
+      </button>
+    </div>
+  </div>
+
+  <!-- Risk indicator -->
+  <div class="risk-indicator" *ngIf="currentQuestionRisk['repoType']">
+    <nb-alert [status]="currentQuestionRisk['repoType'].status">
+      {{ currentQuestionRisk['repoType'].message }}
+    </nb-alert>
+  </div>
+</nb-list-item>
+
 
               <nb-list-item>
                 <p>3. What is the main objective of your project?</p>
