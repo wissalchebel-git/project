@@ -2,6 +2,7 @@ const { exec, execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const { spawn } = require('child_process');
 require('dotenv').config();
 
 const CLONE_DIR = path.join(__dirname, '..', 'cloned-repos');
@@ -11,7 +12,6 @@ if (!fs.existsSync(CLONE_DIR)) {
 }
 
 const cloneRepository = (req, res) => {
-  //console.log("🔍 Incoming request body:", req.body); 
   const { repoUrl, token } = req.body;
 
   if (!repoUrl) {
@@ -86,12 +86,101 @@ const createGitLabProject = async (projectName, namespaceId = null) => {
   }
 };
 
-// Initialize git repo if not already initialized
-const initGitRepo = (localRepoPath) => {
+// Helper function to execute commands using spawn with better configuration
+const executeCommand = (command, args, options = {}) => {
+  return new Promise((resolve, reject) => {
+    // Use full path for git command
+    const fullCommand = command === 'git' ? '/usr/bin/git' : command;
+    console.log(`Executing: ${fullCommand} ${args.join(' ')} in ${options.cwd || 'current directory'}`);
+    
+    const child = spawn(fullCommand, args, {
+      ...options,
+      stdio: ['ignore', 'pipe', 'pipe'], // Explicitly set stdio
+      env: { ...process.env, ...options.env } // Ensure environment variables are passed
+    });
+    
+    
+    let stdout = '';
+    let stderr = '';
+    
+    if (child.stdout) {
+      child.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+    }
+    
+    if (child.stderr) {
+      child.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+    }
+    
+    child.on('close', (code) => {
+      if (code === 0) {
+        console.log(`✅ Command succeeded: ${command} ${args.join(' ')}`);
+        resolve(stdout.trim());
+      } else {
+        console.error(`❌ Command failed with exit code ${code}: ${command} ${args.join(' ')}`);
+        console.error(`stderr: ${stderr}`);
+        reject(new Error(`Command failed with exit code ${code}: ${stderr || 'No error details'}`));
+      }
+    });
+    
+    child.on('error', (error) => {
+      console.error(`❌ Command error: ${command} ${args.join(' ')}`, error);
+      reject(error);
+    });
+  });
+};
+
+// Configure Git user if not already configured
+const configureGitUser = async (localRepoPath) => {
+  try {
+    // Check if user.name is configured
+    try {
+      await executeCommand('git', ['config', 'user.name'], { cwd: localRepoPath });
+    } catch (error) {
+      // If not configured, set a default
+      await executeCommand('git', ['config', 'user.name', 'Automated Bot'], { cwd: localRepoPath });
+    }
+    
+    // Check if user.email is configured
+    try {
+      await executeCommand('git', ['config', 'user.email'], { cwd: localRepoPath });
+    } catch (error) {
+      // If not configured, set a default
+      await executeCommand('git', ['config', 'user.email', 'bot@example.com'], { cwd: localRepoPath });
+    }
+  } catch (error) {
+    console.warn('Failed to configure git user:', error.message);
+    // Don't throw here, as this is not critical
+  }
+};
+
+const initGitRepo = async (localRepoPath) => {
   const gitDir = path.join(localRepoPath, '.git');
   if (!fs.existsSync(gitDir)) {
-    execSync('/usr/bin/sh -c "git init"', { cwd: localRepoPath });
-    execSync('/usr/bin/sh -c "git checkout -b main"', { cwd: localRepoPath }); 
+    try {
+      await executeCommand('git', ['init'], { cwd: localRepoPath });
+      await configureGitUser(localRepoPath);
+      
+      // Check if we're already on main branch, if not create it
+      try {
+        const currentBranch = await executeCommand('git', ['branch', '--show-current'], { cwd: localRepoPath });
+        if (currentBranch.trim() !== 'main') {
+          await executeCommand('git', ['checkout', '-b', 'main'], { cwd: localRepoPath });
+        }
+      } catch (error) {
+        // If branch command fails, try creating main branch anyway
+        await executeCommand('git', ['checkout', '-b', 'main'], { cwd: localRepoPath });
+      }
+    } catch (error) {
+      console.error('Git init failed:', error);
+      throw error;
+    }
+  } else {
+    // Even if git is already initialized, make sure user is configured
+    await configureGitUser(localRepoPath);
   }
 };
 
@@ -99,38 +188,64 @@ const initGitRepo = (localRepoPath) => {
 const addCIConfig = (localRepoPath) => {
   const sourceCI = path.join(__dirname, '../config/.gitlab-ci.yml');
   const destCI = path.join(localRepoPath, '.gitlab-ci.yml');
-
+  
   // Ensure the target directory exists
   if (!fs.existsSync(localRepoPath)) {
     fs.mkdirSync(localRepoPath, { recursive: true });
   }
-
+  
   if (!fs.existsSync(sourceCI)) {
     throw new Error('.gitlab-ci.yml template not found in /config');
   }
-
+  
   fs.copyFileSync(sourceCI, destCI);
+  console.log(`✅ Copied .gitlab-ci.yml to ${destCI}`);
 };
 
 // Commit .gitlab-ci.yml
-const commitCIConfig = (localRepoPath) => {
-  execSync('/usr/bin/sh -c "git add .gitlab-ci.yml"', { cwd: localRepoPath});
-  execSync('/usr/bin/sh -c "git commit -m "Add CI config""', { cwd: localRepoPath});
+const commitCIConfig = async (localRepoPath) => {
+  try {
+    await executeCommand('git', ['add', '.gitlab-ci.yml'], { cwd: localRepoPath });
+    await executeCommand('git', ['commit', '-m', 'Add CI config'], { cwd: localRepoPath });
+  } catch (error) {
+    console.error('Git commit failed:', error);
+    throw error;
+  }
 };
 
 // Push repo to GitLab
-const pushRepo = (localRepoPath, gitlabRepoUrl) => {
+const pushRepo = async (localRepoPath, gitlabRepoUrl) => {
   const GITLAB_API_TOKEN = process.env.GITLAB_API_TOKEN;
-
+  
+  if (!GITLAB_API_TOKEN) {
+    throw new Error('GITLAB_API_TOKEN environment variable is not set');
+  }
+  
   const gitlabRepoUrlWithToken = gitlabRepoUrl.replace(
     'https://',
     `https://oauth2:${GITLAB_API_TOKEN}@`
   );
-
-  execSync(`/usr/bin/sh -c "git remote add gitlab ${gitlabRepoUrlWithToken}"`, {   
-    cwd: localRepoPath});
-  execSync(`/usr/bin/sh -c "git push gitlab main"`, {   
-    cwd: localRepoPath });
+  
+  try {
+    // Check if remote already exists
+    try {
+      await executeCommand('git', ['remote', 'get-url', 'gitlab'], { cwd: localRepoPath });
+      // If it exists, remove it first
+      await executeCommand('git', ['remote', 'remove', 'gitlab'], { cwd: localRepoPath });
+    } catch (error) {
+      // Remote doesn't exist, which is fine
+    }
+    
+    await executeCommand('git', ['remote', 'add', 'gitlab', gitlabRepoUrlWithToken], { 
+      cwd: localRepoPath 
+    });
+    await executeCommand('git', ['push', 'gitlab', 'main'], { 
+      cwd: localRepoPath 
+    });
+  } catch (error) {
+    console.error('Git push failed:', error);
+    throw error;
+  }
 };
 
 module.exports = {

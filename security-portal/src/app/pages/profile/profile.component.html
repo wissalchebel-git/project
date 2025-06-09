@@ -1,7 +1,7 @@
 <nb-card>
   <nb-card-header class="header">
     <nb-user 
-      name="John Doe" 
+      name="wissal" 
       title="Security Analyst" 
       size="giant" 
       picture="https://i.pravatar.cc/300" 
@@ -37,8 +37,8 @@
     </div>
 
     <div class="buttons">
-      <button nbButton status="success" (click)="saveProfile()">💾 Save</button>
-      <button nbButton status="danger" (click)="logout()">🚪 Logout</button>
+      <button nbButton status="success" (click)="saveProfile()">Save</button>
+      <button nbButton status="danger" (click)="logout()"><a routerLink="/login">Logout</a></button>
     </div>
   </nb-card-body>
 </nb-card>

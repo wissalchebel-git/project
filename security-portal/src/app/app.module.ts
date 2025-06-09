@@ -22,6 +22,7 @@ import { FooterComponent } from './footer/footer.component';
 import { LoginComponent } from './auth/login/login.component';
 import { SignupComponent } from './auth/signup/signup.component';
 import { ReactiveFormsModule } from '@angular/forms';
+import { JwtHelperService, JWT_OPTIONS } from '@auth0/angular-jwt';
 // Services
 import { AuthService } from './auth.service';
 
@@ -79,7 +80,9 @@ import { AuthComponent } from './auth/auth.component';
     }),
   ],
 
-  providers: [NbSidebarModule, AuthService, AuthGuard],
+  providers: [NbSidebarModule, AuthService, AuthGuard,     
+    { provide: JWT_OPTIONS, useValue: JWT_OPTIONS },
+    JwtHelperService],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

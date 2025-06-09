@@ -7,7 +7,7 @@ import { NbThemeService } from '@nebular/theme';
   styleUrls: ['./profile.component.scss']
 })
 export class ProfileComponent {
-  email = 'johndoe@example.com';
+  email = 'wissal.chebel@sofrecom.com';
   password = '';
   role = 'admin';
   darkMode = false;

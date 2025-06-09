@@ -1,4 +1,4 @@
-#version: '3.8'
+version: '3.8'
 
 services:
   mongo:
@@ -22,18 +22,24 @@ services:
       - .env
     depends_on:
       - mongo
-    #volumes:
-      #- ./backend:/usr/src/app
-      #- /usr/src/app/node_modules
     command: npm start
 
   frontend:
-    build: ./security-portal  
+    build: ./security-portal
     container_name: pfe-frontend
     ports:
-      - "4200:4200"  
+      - "80:80"
+      - "443:443"
     depends_on:
       - backend
-    volumes:
-      - ./security-portal:/usr/src/app  
-    command: npm start 
+
+    environment:
+      - NGINX_HOST=security-portal
+      - NGINX_PORT=443
+    restart: unless-stopped
+    networks:
+      - web-network
+
+networks:
+  web-network:
+    driver: bridge  

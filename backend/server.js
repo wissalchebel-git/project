@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const connectDB = require('./config/db');
+const mongoose = require('mongoose');
 const getKeycloak = require('./keycloak/keycloak-config');
 const errorHandler = require('./middleware/errorHandler');
 const reportRoutes = require('./routes/reporttRoutes');
@@ -11,12 +12,20 @@ const session = require('express-session');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const client = require('prom-client');
+const dotenv = require('dotenv');
 
 
-// Connect to the database
-connectDB();
-// Create Express app
+dotenv.config();
+
 const app = express();
+app.use(express.json()); // to parse JSON body
+
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
 
 // Session store
 const memoryStore = new session.MemoryStore();
@@ -33,7 +42,11 @@ app.use(bodyParser.json());
 
 // CORS
 app.use(cors({
-  origin: 'http://localhost:4200', // Port front
+    origin: [
+    'http://localhost:4200',        // Local development
+    'http://security-portal',       // Docker container
+    
+  ],
   credentials: true
 }));
 

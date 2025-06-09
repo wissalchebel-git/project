@@ -1,28 +1,45 @@
-# Stage 1: Build Angular app
-FROM node:18
 
-# Set the working directory inside the container
+
+# -------- Stage 1: Build Angular app --------
+FROM node:18 AS build
+
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json to the container
+# Installer les dépendances
 COPY package.json package-lock.json ./
-
-# Install the dependencies
 RUN npm install
 
-# Copy the rest of the application files
+# Copier le reste des fichiers
 COPY . .
-# Stage 2: Serve app with Nginx
-#FROM nginx:alpine 
 
-# Remove default Nginx static files and copy the built Angular app
-#RUN rm -rf /usr/share/nginx/html/*
-#COPY --from=build /app/dist/security-portal /usr/share/nginx/html
-# Copy Nginx configuration file
-#COPY nginx.conf /etc/nginx/conf.d/default.conf
-#CMD ["nginx", "-g", "daemon off;"]
-# Start Angular app
+# Compiler l'application Angular en mode production
+RUN npm run build -- --output-path=dist/security-portal --configuration=production
 
-EXPOSE 4200
+# -------- Stage 2: Serve app with Nginx + SSL --------
+FROM nginx:alpine
 
-CMD ["npm", "start"]
+# Créer le répertoire pour les certificats SSL
+RUN mkdir -p /etc/nginx/ssl
+
+# Copier les certificats SSL
+COPY ssl/localhost.crt /etc/nginx/ssl/localhost.crt
+COPY ssl/localhost.key /etc/nginx/ssl/localhost.key
+
+# Définir les bonnes permissions
+RUN chmod 644 /etc/nginx/ssl/localhost.crt && \
+    chmod 600 /etc/nginx/ssl/localhost.key && \
+    chown root:root /etc/nginx/ssl/*
+
+# Supprimer les fichiers statiques Nginx par défaut
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copier l'app Angular buildée (depuis le sous-répertoire 'browser')
+COPY --from=build /usr/src/app/dist/security-portal/browser /usr/share/nginx/html
+
+# Copier la configuration Nginx personnalisée (support HTTPS)
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Exposer les ports HTTP (80) et HTTPS (443)
+EXPOSE 80 443
+
+CMD ["nginx", "-g", "daemon off;"]

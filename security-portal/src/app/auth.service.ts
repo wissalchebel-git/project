@@ -1,111 +1,56 @@
-// src/app/services/auth.service.ts
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
-import { Router } from '@angular/router';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Observable, BehaviorSubject } from 'rxjs';
+import { tap } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private currentUserSubject: BehaviorSubject<any>;
-  public currentUser: Observable<any>;
-  private apiUrl = 'http://localhost:5000'; 
-  
-  constructor(
-    private http: HttpClient,
-    private router: Router
-  ) {
-    // Check if user is stored in localStorage
-    this.currentUserSubject = new BehaviorSubject<any>(
-      JSON.parse(localStorage.getItem('currentUser') || 'null')
+  private baseUrl = 'http://localhost:5000/api/auth';
+  private tokenKey = 'auth-token';
+  private isLoggedInSubject = new BehaviorSubject<boolean>(this.hasToken());
+
+  constructor(private http: HttpClient) {}
+
+  private hasToken(): boolean {
+    return !!localStorage.getItem(this.tokenKey);
+  }
+
+  register(data: { name: string; email: string; password: string; role?: string }): Observable<any> {
+    return this.http.post(`${this.baseUrl}/register`, data);
+  }
+
+  login(data: { email: string; password: string }): Observable<any> {
+    return this.http.post(`${this.baseUrl}/login`, data).pipe(
+      tap((res: any) => {
+        if (res?.token) {
+          localStorage.setItem(this.tokenKey, res.token);
+          this.isLoggedInSubject.next(true);
+        }
+      })
     );
-    this.currentUser = this.currentUserSubject.asObservable();
   }
 
-  public get currentUserValue(): any {
-    return this.currentUserSubject.value;
+  getProfile(): Observable<any> {
+    const token = localStorage.getItem(this.tokenKey);
+    if (!token) throw new Error('Token not found');
+    const headers = new HttpHeaders({
+      Authorization: `Bearer ${token}`
+    });
+    return this.http.get(`${this.baseUrl}/profile`, { headers });
   }
 
-  login(email: string, password: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/auth/login`, { email, password })
-      .pipe(
-        map(user => {
-          // Store user details and jwt token in local storage
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          this.currentUserSubject.next(user);
-          return user;
-        }),
-        catchError(error => {
-          console.error('Login error:', error);
-          throw error;
-        })
-      );
-  }
-  
-  register(name: string, email: string, password: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/auth/register`, { name, email, password })
-      .pipe(
-        map(user => {
-          // Store user details and jwt token in local storage
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          this.currentUserSubject.next(user);
-          return user;
-        }),
-        catchError(error => {
-          console.error('Registration error:', error);
-          throw error;
-        })
-      );
+  getToken(): string | null {
+    return localStorage.getItem(this.tokenKey);
   }
 
   logout(): void {
-    // Remove user from local storage and set current user to null
-    localStorage.removeItem('currentUser');
-    this.currentUserSubject.next(null);
-    this.router.navigate(['/auth/login']);
+    localStorage.removeItem(this.tokenKey);
+    this.isLoggedInSubject.next(false);
   }
 
-  isAuthenticated(): boolean {
-    const user = this.currentUserValue;
-    if (user && user.token) {
-      // Check if token is not expired
-      const tokenExpired = this.isTokenExpired(user.token);
-      return !tokenExpired;
-    }
-    return false;
-  }
-
-  private isTokenExpired(token: string): boolean {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp < currentTime;
-    } catch (error) {
-      return true;
-    }
-  }
-
-  getCurrentUser(): Observable<any> {
-    return this.currentUser;
-  }
-
-  // For development/testing - simulate login
-  mockLogin(email: string, password: string): Observable<any> {
-    // Simulate API call delay
-    return of({
-      id: 1,
-      email: email,
-      name: 'Test User',
-      token: 'fake-jwt-token',
-      exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24) // 24 hours from now
-    }).pipe(
-      map(user => {
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        this.currentUserSubject.next(user);
-        return user;
-      })
-    );
+  isLoggedIn(): Observable<boolean> {
+    return this.isLoggedInSubject.asObservable();
   }
 }

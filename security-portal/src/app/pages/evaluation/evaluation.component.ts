@@ -338,6 +338,33 @@ export class EvaluationComponent implements OnInit {
     return 'danger';
   }
 
+   cloneGithubRepo() {
+    const payload = {
+      type: 'public',
+      repoUrl: this.answers.githubURL
+    };
+    
+    console.log("📦 Payload to send:", payload);
+    
+    this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
+      next: res => alert(`✅ GitHub Repo Cloned Successfully!\n📁 Path: ${res.path}`),
+      error: err => alert("❌ Error: " + err.error?.error)
+    });
+  }
+  
+  cloneGitlabRepo() {
+    const payload = {
+      type: 'private',
+      repoUrl: this.answers.gitlabURL,
+      token: this.answers.gitlabToken
+    };
+  
+    this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
+      next: res => alert(`✅ GitLab Repo Cloned Successfully!\n📁 Path: ${res.path}`),
+      error: err => alert("❌ Error: " + err.error?.error)
+    });
+  }
+  
 // Repository Analysis with Automated Scanning
   analyzeRepository(type: 'github' | 'gitlab'): void {
     const url = type === 'github' ? this.answers.githubURL : this.answers.gitlabURL;
@@ -478,35 +505,7 @@ export class EvaluationComponent implements OnInit {
     };
   }
 
-  cloneGithubRepo() {
-    const payload = {
-      type: 'public',
-      repoUrl: this.answers.githubURL
-    };
-    
-    console.log("📦 Payload to send:", payload);
-    
-    this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
-      next: res => alert(`✅ GitHub Repo Cloned Successfully!\n📁 Path: ${res.path}`),
-      error: err => alert("❌ Error: " + err.error?.error)
-    });
-  }
-  
-  cloneGitlabRepo() {
-    const payload = {
-      type: 'private',
-      repoUrl: this.answers.gitlabURL,
-      token: this.answers.gitlabToken
-    };
-  
-    this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
-      next: res => alert(`✅ GitLab Repo Cloned Successfully!\n📁 Path: ${res.path}`),
-      error: err => alert("❌ Error: " + err.error?.error)
-    });
-  }
-
-
-
+ 
   generateRepositoryRecommendations(): string[] {
     const recommendations = [
       'Enable branch protection rules for main/master branch',

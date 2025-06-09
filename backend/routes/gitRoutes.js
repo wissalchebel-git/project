@@ -21,11 +21,11 @@ router.post('/gitlab-push', async (req, res, next) => {
     const gitlabRepoUrl = project.http_url_to_repo;
 
     // Step 3: Add CI config and push
-    
-    gitController.initGitRepo(targetDir);
+  
+    await gitController.initGitRepo(targetDir);
     gitController.addCIConfig(targetDir);
-    gitController.commitCIConfig(targetDir);
-    gitController.pushRepo(targetDir, gitlabRepoUrl);
+    await gitController.commitCIConfig(targetDir);
+    await gitController.pushRepo(targetDir, gitlabRepoUrl);
 
     res.json({ message: ' CI configured, pushed to GitLab!', gitlabUrl: project.web_url });
   } catch (err) {

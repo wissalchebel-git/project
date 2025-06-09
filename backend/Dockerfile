@@ -1,8 +1,8 @@
-FROM node:18
+FROM node:18-slim
 
 WORKDIR /usr/src/app
 
-#RUN apt-get update && apt-get install -y git && 
+RUN apt-get update && apt-get install -y git 
 
 COPY package*.json ./
 

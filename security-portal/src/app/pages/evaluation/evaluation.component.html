@@ -31,7 +31,7 @@
           <nb-card-body>
             <nb-list>
               <nb-list-item>
-                <p>1. What is the name of your project?</p>
+                <p> What is the name of your project?</p>
                 <input nbInput placeholder="Enter project name" 
                        [(ngModel)]="answers.projectName" 
                        name="projectName" 
@@ -112,9 +112,15 @@
                           name="projectObjective"
                           (ngModelChange)="onAnswerChange('projectObjective', $event)"></textarea>
               </nb-list-item>
-
               <nb-list-item>
-                <p>4. Who are the parties involved in this project?</p>
+                <p>4. What language do you use ?</p>
+                <textarea nbInput placeholder="Describe your project" 
+                          [(ngModel)]="answers.projectObjective" 
+                          name="projectObjective"
+                          (ngModelChange)="onAnswerChange('projectObjective', $event)"></textarea>
+              </nb-list-item>
+              <nb-list-item>
+                <p>5. Who are the parties involved in this project?</p>
                 <textarea nbInput placeholder="List stakeholders" 
                           [(ngModel)]="answers.stakeholders" 
                           name="stakeholders"
@@ -122,7 +128,7 @@
               </nb-list-item>
 
               <nb-list-item>
-                <p>5. Provide your email address:</p>
+                <p>6. Provide your email address:</p>
                 <input nbInput type="email" placeholder="example@domain.com" 
                        [(ngModel)]="answers.email" 
                        name="email" 
@@ -139,7 +145,7 @@
           <nb-card-body>
             <nb-list>
               <nb-list-item>
-                <p>6. Do you use multi-factor authentication (MFA)?</p>
+                <p>7. Do you use multi-factor authentication (MFA)?</p>
                 <nb-radio-group [(ngModel)]="answers.mfa" 
                                 name="mfa"
                                 (ngModelChange)="onAnswerChange('mfa', $event)">
@@ -156,7 +162,7 @@
               </nb-list-item>
 
               <nb-list-item>
-                <p>7. Are your Git repositories configured with protection rules?</p>
+                <p>8. Are your Git repositories configured with protection rules?</p>
                 <nb-radio-group [(ngModel)]="answers.gitProtection" 
                                 name="gitProtection"
                                 (ngModelChange)="onAnswerChange('gitProtection', $event)">
@@ -174,7 +180,7 @@
               </nb-list-item>
 
               <nb-list-item>
-                <p>8. What security measures have you put in place?</p>
+                <p>9. What security measures have you put in place?</p>
                 <nb-checkbox [(ngModel)]="answers.securityMeasures.accessControl"
                              (ngModelChange)="onSecurityMeasureChange('accessControl', $event)">
                   Access Control
@@ -196,7 +202,7 @@
               </nb-list-item>
 
               <nb-list-item>
-                <p>9. Do you use static or dynamic analysis tools?</p>
+                <p>10. Do you use static or dynamic analysis tools?</p>
                 <input nbInput placeholder="Enter tool names (e.g. SonarQube, OWASP ZAP)" 
                        [(ngModel)]="answers.analysisTools" 
                        name="analysisTools"

@@ -21,7 +21,7 @@ const routes: Routes = [
   { path: 'evaluation', component: EvaluationComponent },
   { path: 'reports', component: ReportsComponent },
   { path: 'notifications', component: NotificationsComponent },
-  { path: 'profile', component: ProfileComponent },
+  { path: 'profile', component: ProfileComponent},
   { path: 'settings', component: SettingsComponent },
   { path: '**', redirectTo: 'login' }, 
 ];

@@ -2,7 +2,7 @@
 $color-orange: #FFA500;
 $color-black: #000000;
 $color-white: #FFFFFF;
-$color-grey: #f0f0f0;
+$color-grey: #bebcbc;
 $color-green: #4CAF50;
 $color-danger: #dc3545;
 $color-primary: #007bff;
@@ -17,13 +17,18 @@ body {
 }
 
 // Auth Container
+.page.active {
+            display: block;
+}
 .auth-container {
   max-width: 400px;
   margin: 5rem auto;
   padding: 2rem;
   background: $color-grey;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  
 
   h2 {
     color: $color-orange;

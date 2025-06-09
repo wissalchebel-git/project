@@ -11,6 +11,8 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Email is required'],
     unique: true,
     lowercase: true,
+    trim: true,
+    match: [/^\S+@\S+\.\S+$/, 'Invalid email format'],
   },
   role: {
     type: String,
@@ -28,5 +30,11 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('User', userSchema);
+// Remove password from JSON output
+userSchema.methods.toJSON = function () {
+  const userObject = this.toObject();
+  delete userObject.password;
+  return userObject;
+};
 
+module.exports = mongoose.model('User', userSchema);

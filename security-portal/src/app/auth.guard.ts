@@ -1,29 +1,24 @@
-// src/app/guards/auth.guard.ts
 import { Injectable } from '@angular/core';
-import { Router, CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
-import { AuthService } from './auth.service';  
-
+import { CanActivate, Router } from '@angular/router';
+import { AuthService } from './auth.service';
+import { JwtHelperService } from '@auth0/angular-jwt';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class AuthGuard implements CanActivate {
-  constructor(
-    private router: Router,
-    private authService: AuthService
-  ) {}
+  private jwtHelper = new JwtHelperService();
 
-  canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
-    const currentUser = this.authService.currentUserValue;
-    
-    if (currentUser && this.authService.isAuthenticated()) {
-      // User is logged in and token is valid, allow access
+  constructor(private authService: AuthService, private router: Router) {}
+
+  canActivate(): boolean {
+    const token = this.authService.getToken();
+
+    if (token && !this.jwtHelper.isTokenExpired(token)) {
       return true;
+    } else {
+      this.router.navigate(['/login']);
+      return false;
     }
-
-    // User is not logged in or token is expired, redirect to login
-    this.router.navigate(['/auth/login'], { queryParams: { returnUrl: state.url } });
-    return false;
   }
 }
-
