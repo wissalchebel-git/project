@@ -1,8 +1,8 @@
-FROM node:18-slim
+FROM node:23.8.0-alpine3.21 
 
 WORKDIR /usr/src/app
 
-RUN apt-get update && apt-get install -y git 
+RUN apk update && apk add --no-cache git
 
 COPY package*.json ./
 

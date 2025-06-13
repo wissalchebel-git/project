@@ -5,64 +5,119 @@ import * as jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { GitService } from '../../git.service';
 
-class SecurityAnswers {
+// CVSS-aligned Security Answers Model
+class CVSSSecurityAnswers {
+  // Project Information
   projectName: string = '';
   repoType: 'public' | 'private' | '' = '';
   githubURL: string = '';
   gitlabURL: string = '';
   gitlabToken: string = '';
+  githubToken: string = '';
   projectObjective: string = '';
   stakeholders: string = '';
   email: string = '';
-  mfa: 'yes' | 'no' | '' = '';
-  gitProtection: 'yes' | 'no' | '' = '';
+
+  // CVSS Base Metrics - Exploitability
+  attackVector?: 'network' | 'adjacent' | 'local' | 'physical'; // AV
+  attackComplexity?: 'low' | 'high' ; // AC
+  privilegesRequired?: 'none' | 'low' | 'high' ; // PR
+  userInteraction?: 'none' | 'required' ; // UI
+  scope?: 'unchanged' | 'changed' ; // S
+
+  // CVSS Base Metrics - Impact
+  confidentialityImpact?: 'none' | 'low' | 'high' ; // C
+  integrityImpact?: 'none' | 'low' | 'high' ; // I
+  availabilityImpact?: 'none' | 'low' | 'high' ; // A
+
+  // CVSS Temporal Metrics
+  exploitCodeMaturity?: 'not-defined' | 'unproven' | 'proof-of-concept' | 'functional' | 'high' ;
+  remediationLevel?: 'not-defined' | 'official-fix' | 'temporary-fix' | 'workaround' | 'unavailable' ;
+  reportConfidence?: 'not-defined' | 'unknown' | 'reasonable' | 'confirmed' ;
+
+  // CVSS Environmental Metrics
+  modifiedAttackVector?: 'not-defined' | 'network' | 'adjacent' | 'local' | 'physical' | '' = '';
+  modifiedAttackComplexity?: 'not-defined' | 'low' | 'high' | '' = '';
+  modifiedPrivilegesRequired?: 'not-defined' | 'none' | 'low' | 'high' | '' = '';
+  modifiedUserInteraction?: 'not-defined' | 'none' | 'required' | '' = '';
+  modifiedScope?: 'not-defined' | 'unchanged' | 'changed' | '' = '';
+  modifiedConfidentiality?: 'not-defined' | 'none' | 'low' | 'high' | '' = '';
+  modifiedIntegrity?: 'not-defined' | 'none' | 'low' | 'high' | '' = '';
+  modifiedAvailability?: 'not-defined' | 'none' | 'low' | 'high' | '' = '';
+
+  // Security Practice Questions (mapped to CVSS context)
+  mfa: 'yes' | 'no' | '' = ''; // Maps to Privileges Required
+  gitProtection: 'yes' | 'no' | '' = ''; // Maps to Attack Complexity
+  secretsManagement: 'yes' | 'no' | '' = ''; // Maps to Confidentiality Impact
+  staticAnalysis: 'yes' | 'no' | '' = ''; // Maps to Exploit Code Maturity
+  dynamicAnalysis: 'yes' | 'no' | '' = ''; // Maps to Exploit Code Maturity
+  scaTools: 'yes' | 'no' | '' = ''; // Maps to Remediation Level
+  vulnerabilityScans: 'yes' | 'no' | '' = ''; // Maps to Report Confidence
+  scanFrequency: 'weekly' | 'monthly' | 'quarterly' | 'never' | '' = '';
+  identifiedVulnerabilities: 'yes' | 'no' | '' = '';
+  vulnerabilitySeverity: 'critical' | 'high' | 'medium' | 'low' | 'none' | '' = '';
+  patchingFrequency: 'immediate' | 'weekly' | 'monthly' | 'quarterly' | 'never' | '' = '';
+  monitoringTools: 'yes' | 'no' | '' = '';
+  contingencyPlan: 'yes' | 'no' | '' = '';
+  complianceStandards: string = '';
+  securityTraining: 'yes' | 'no' | '' = '';
+  trainingFrequency: 'monthly' | 'quarterly' | 'annually' | 'never' | '' = '';
+   // Additional CVSS-aligned questions
+  exploitMitigation: 'yes' | 'no' | '' = ''; // ASLR, DEP, CSP, etc.
+  dataClassification: 'public' | 'internal' | 'confidential' | 'restricted' | '' = '';
+  networkSegmentation: 'yes' | 'no' | '' = '';
+  accessControlModel: 'none' | 'basic' | 'rbac' | 'abac' | '' = '';
+  // Security Measures (composite)
   securityMeasures = {
     accessControl: false,
     encryption: false,
-    audits: false
+    audits: false,
+    networkSecurity: false,
+    incidentResponse: false
   };
-  analysisTools: string = '';
-  securityTests: string = '';
-  scaTools: 'yes' | 'no' | '' = '';
-  vulnerabilityScans: 'yes' | 'no' | '' = '';
-  identifiedVulnerabilities: 'yes' | 'no' | '' = '';
-  vulnerabilityHandling: string = '';
-  securityUpdates: string = '';
-  monitoringTools: 'yes' | 'no' | '' = '';
-  secretsManagement: 'yes' | 'no' | '' = '';
-  contingencyPlan: 'yes' | 'no' | '' = '';
-  complianceStandards: string = '';
-  riskAssessment: 'yes' | 'no' | '' = '';
-  securityTraining: 'yes' | 'no' | '' = '';
-  trainingFrequency: string = '';
-  userAwareness: string = '';
+
+  // Environmental Context
+  projectCriticality: 'low' | 'medium' | 'high' | 'critical' | '' = '';
+  hostingEnvironment: 'cloud' | 'on-premise' | 'hybrid' | '' = '';
+  teamExperience: 'junior' | 'intermediate' | 'senior' | 'expert' | '' = '';
+}
+interface ActionPlanItem {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'pending' | 'in-progress' | 'completed';
+  assignee?: string;
+  dueDate?: Date;
 }
 
-interface RiskCategory {
+interface CVSSScores {
+  baseScore: number;
+  temporalScore: number;
+  environmentalScore: number;
+  exploitabilityScore: number;
+  impactScore: number;
+  overallRiskScore: number;
+}
+
+interface CVSSRiskCategory {
   name: string;
   score: number;
+  maxScore: number;
   status: 'success' | 'warning' | 'danger';
+  metrics: string[];
+  weight: number;
 }
 
-interface RiskAssessment {
-  status: 'success' | 'warning' | 'danger';
-  message: string;
-  consequence?: string;
-  recommendation?: string;
-}
-
-interface ActionPlanItem {
+interface SecurityRecommendation {
+  category: string;
+  priority: 'critical' | 'high' | 'medium' | 'low';
   title: string;
-  priority: 'high' | 'medium' | 'low';
   description: string;
+  cvssImpact: number;
   timeline: string;
-  resources: string;
-  completed: boolean;
-}
-
-interface MatrixLevel {
-  label: string;
-  value: number;
+  effort: 'low' | 'medium' | 'high';
+  affectedMetrics: string[];
 }
 
 @Component({
@@ -72,279 +127,517 @@ interface MatrixLevel {
 })
 export class EvaluationComponent implements OnInit {
   
-  // Form answers
-  answers: SecurityAnswers = new SecurityAnswers();
+  answers: CVSSSecurityAnswers = new CVSSSecurityAnswers();
+  cvssScores: CVSSScores = {
+    baseScore: 0,
+    temporalScore: 0,
+    environmentalScore: 0,
+    exploitabilityScore: 0,
+    impactScore: 0,
+    overallRiskScore: 0
+  };
 
-  // Risk assessment
-  globalRiskScore: number = 0;
-  riskCategories: RiskCategory[] = [
-    { name: 'Authentication', score: 0, status: 'success' },
-    { name: 'Code Security', score: 0, status: 'success' },
-    { name: 'Infrastructure', score: 0, status: 'success' },
-    { name: 'Compliance', score: 0, status: 'success' },
-    { name: 'Incident Response', score: 0, status: 'success' }
+  // CVSS Risk Categories with weights
+  riskCategories: CVSSRiskCategory[] = [
+    { 
+      name: 'Exploitability', 
+      score: 0, 
+      maxScore: 10, 
+      status: 'success',
+      metrics: ['Attack Vector', 'Attack Complexity', 'Privileges Required', 'User Interaction'],
+      weight: 0.3
+    },
+    { 
+      name: 'Impact', 
+      score: 0, 
+      maxScore: 10, 
+      status: 'success',
+      metrics: ['Confidentiality', 'Integrity', 'Availability', 'Scope'],
+      weight: 0.4
+    },
+    { 
+      name: 'Temporal', 
+      score: 0, 
+      maxScore: 10, 
+      status: 'success',
+      metrics: ['Exploit Code Maturity', 'Remediation Level', 'Report Confidence'],
+      weight: 0.2
+    },
+    { 
+      name: 'Environmental', 
+      score: 0, 
+      maxScore: 10, 
+      status: 'success',
+      metrics: ['Modified Base Metrics', 'Requirements', 'Project Context'],
+      weight: 0.1
+    }
   ];
 
-  currentQuestionRisk: { [key: string]: RiskAssessment } = {};
+  // Add this property to your component class
+actionPlan: ActionPlanItem[] = [];
 
-  // Risk Matrix
-  showRiskMatrix: boolean = false;
-  probabilityLevels: MatrixLevel[] = [
-    { label: 'Very High', value: 5 },
-    { label: 'High', value: 4 },
-    { label: 'Medium', value: 3 },
-    { label: 'Low', value: 2 },
-    { label: 'Very Low', value: 1 }
-  ];
-
-  impactLevels: MatrixLevel[] = [
-    { label: 'Low', value: 1 },
-    { label: 'Medium', value: 2 },
-    { label: 'High', value: 3 },
-    { label: 'Critical', value: 4 }
-  ];
-
-  // Action Plan and Reports
-  actionPlan: ActionPlanItem[] = [];
+  recommendations: SecurityRecommendation[] = [];
+  repositoryAnalysis: any = null;
+  automatedScanInProgress: boolean = false;
   finalReport: any = null;
 
-  // Repository Analysis
-  repositoryAnalysis: any = null;
-  
-  automatedScanInProgress: boolean = false;
+  // CVSS Score Mappings
+   private readonly CVSS_MAPPINGS = {
+    attackVector: { network: 0.85, adjacent: 0.62, local: 0.55, physical: 0.2 },
+    attackComplexity: { low: 0.77, high: 0.44 },
+    privilegesRequired: { 
+      unchanged: { none: 0.85, low: 0.62, high: 0.27 },
+      changed: { none: 0.85, low: 0.68, high: 0.50 }
+    },
+    userInteraction: { none: 0.85, required: 0.62 },
+    scope: { unchanged: 1, changed: 1 },
+    impact: { none: 0, low: 0.22, high: 0.56 },
+    temporal: {
+      exploitCodeMaturity: { 'not-defined': 1, unproven: 0.91, 'proof-of-concept': 0.94, functional: 0.97, high: 1 },
+      remediationLevel: { 'not-defined': 1, 'official-fix': 0.87, 'temporary-fix': 0.90, workaround: 0.95, unavailable: 1 },
+      reportConfidence: { 'not-defined': 1, unknown: 0.92, reasonable: 0.96, confirmed: 1 }
+    },
+    // Risk weights for security practices
+    riskWeights: {
+      mfa: { yes: 0, no: 3 },
+      gitProtection: { yes: 0, no: 2 },
+      secretsManagement: { yes: 0, no: 3 },
+      staticAnalysis: { yes: 0, no: 2 },
+      dynamicAnalysis: { yes: 0, no: 2 },
+      scaTools: { yes: 0, no: 2 },
+      vulnerabilityScans: { yes: 0, no: 2 },
+      monitoringTools: { yes: 0, no: 2 },
+      contingencyPlan: { yes: 0, no: 3 },
+      exploitMitigation: { yes: 0, no: 2 },
+      networkSegmentation: { yes: 0, no: 2 }
+    }
+  } as const;
+
   constructor(private http: HttpClient, private gitService: GitService) {}
 
   ngOnInit(): void {
-    this.updateGlobalRiskScore();
+    this.calculateCVSSScores();
   }
 
-  // Real-time risk assessment for individual questions
+  // CVSS Score Calculation Methods
   onAnswerChange(questionKey: string, value: any): void {
-    this.assessQuestionRisk(questionKey, value);
-    this.updateGlobalRiskScore();
+    this.mapSecurityPracticesToCVSS(questionKey, value);
+    this.calculateCVSSScores();
+    this.generateRecommendations();
   }
 
   onSecurityMeasureChange(measure: string, value: boolean): void {
     this.answers.securityMeasures[measure as keyof typeof this.answers.securityMeasures] = value;
-    this.assessQuestionRisk('securityMeasures', this.answers.securityMeasures);
-    this.updateGlobalRiskScore();
+    this.mapSecurityMeasuresToCVSS();
+    this.calculateCVSSScores();
   }
 
-  assessQuestionRisk(questionKey: string, value: any): void {
+   mapSecurityPracticesToCVSS(questionKey: string, value: any): void {
     switch (questionKey) {
-      case 'projectName':
-        if (!value || value.trim().length === 0) {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'warning',
-            message: 'Project identification is important for security tracking'
-          };
-        } else {
-          delete this.currentQuestionRisk[questionKey];
-        }
-        break;
-
-      case 'repoType':
-        if (value === 'public') {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'warning',
-            message: 'Public repositories increase exposure risk',
-            consequence: 'Source code and potential secrets exposed to public',
-            recommendation: 'Ensure no sensitive data is committed and implement proper access controls'
-          };
-        } else if (value === 'private') {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'success',
-            message: 'Private repositories provide better security control'
-          };
-        }
-        break;
-
       case 'mfa':
-        if (value === 'no') {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'danger',
-            message: 'HIGH RISK: No multi-factor authentication',
-            consequence: 'Account compromise through credential theft or brute force attacks',
-            recommendation: 'Immediately implement MFA for all accounts with repository access'
-          };
-        } else if (value === 'yes') {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'success',
-            message: 'MFA provides strong authentication security'
-          };
-        }
+        // MFA affects Privileges Required
+        this.answers.privilegesRequired = value === 'yes' ? 'high' : 'none';
         break;
-
-      case 'gitProtection':
-        if (value === 'no') {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'danger',
-            message: 'HIGH RISK: No repository protection rules',
-            consequence: 'Unauthorized changes, malicious code injection, accidental deletions',
-            recommendation: 'Configure branch protection, require reviews, and enable signed commits'
-          };
-        } else if (value === 'yes') {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'success',
-            message: 'Repository protection rules enhance code security'
-          };
-        }
-        break;
-
-      case 'securityMeasures':
-        const measures = value as typeof this.answers.securityMeasures;
-        const implementedCount = Object.values(measures).filter(Boolean).length;
         
-        if (implementedCount === 0) {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'danger',
-            message: 'CRITICAL: No security measures implemented'
-          };
-        } else if (implementedCount <= 1) {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'warning',
-            message: 'Limited security measures - consider implementing additional controls'
-          };
-        } else if (implementedCount === 2) {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'warning',
-            message: 'Good security foundation - consider implementing all three measures'
-          };
-        } else {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'success',
-            message: 'Comprehensive security measures implemented'
-          };
-        }
+      case 'gitProtection':
+        // Git protection affects Attack Complexity
+        this.answers.attackComplexity = value === 'yes' ? 'high' : 'low';
         break;
-
-      case 'analysisTools':
-        if (!value || value.trim().length === 0) {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'warning',
-            message: 'Static/Dynamic analysis tools help identify vulnerabilities early'
-          };
-        } else {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'success',
-            message: 'Analysis tools enhance code security'
-          };
-        }
+        
+      case 'repoType':
+        // Repository type affects Attack Vector
+        this.answers.attackVector = value === 'public' ? 'network' : 'adjacent';
         break;
-
+        
+      case 'secretsManagement':
+        // Secrets management affects Confidentiality Impact
+        this.answers.confidentialityImpact = value === 'no' ? 'high' : 'low';
+        break;
+        
+      case 'staticAnalysis':
+      case 'dynamicAnalysis':
+        // Analysis tools affect Exploit Code Maturity
+        const hasAnalysis = this.answers.staticAnalysis === 'yes' || this.answers.dynamicAnalysis === 'yes';
+        this.answers.exploitCodeMaturity = hasAnalysis ? 'unproven' : 'functional';
+        break;
+        
       case 'scaTools':
+        // SCA tools affect Remediation Level
+        this.answers.remediationLevel = value === 'yes' ? 'official-fix' : 'workaround';
+        break;
+        
+      case 'vulnerabilityScans':
+        // Vulnerability scans affect Report Confidence
+        this.answers.reportConfidence = value === 'yes' ? 'confirmed' : 'unknown';
+        break;
+        
+      case 'monitoringTools':
+        // Monitoring affects Availability Impact
+        this.answers.availabilityImpact = value === 'no' ? 'high' : 'low';
+        break;
+        
+      case 'contingencyPlan':
+        // Contingency plan affects Availability Impact and Scope
         if (value === 'no') {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'warning',
-            message: 'Software Composition Analysis helps identify vulnerable dependencies'
-          };
-        } else if (value === 'yes') {
-          this.currentQuestionRisk[questionKey] = {
-            status: 'success',
-            message: 'SCA tools provide important dependency security'
-          };
+          this.answers.availabilityImpact = 'high';
+          this.answers.scope = 'changed';
         }
         break;
-
-      default:
+        
+      case 'exploitMitigation':
+        // Exploit mitigation affects Attack Complexity
+        this.answers.attackComplexity = value === 'yes' ? 'high' : 'low';
+        break;
+        
+      case 'networkSegmentation':
+        // Network segmentation affects Attack Vector
+        if (value === 'yes') {
+          this.answers.attackVector = this.answers.attackVector === 'network' ? 'adjacent' : this.answers.attackVector;
+        }
+        break;
+        
+      case 'accessControlModel':
+        // Access control model affects Privileges Required
+        switch (value) {
+          case 'abac':
+          case 'rbac':
+            this.answers.privilegesRequired = 'high';
+            break;
+          case 'basic':
+            this.answers.privilegesRequired = 'low';
+            break;
+          case 'none':
+            this.answers.privilegesRequired = 'none';
+            break;
+        }
         break;
     }
   }
 
-  updateGlobalRiskScore(): void {
-    let totalRisk = 0;
-    const factors = [
-      { key: 'mfa', weight: 20, riskValue: this.answers.mfa === 'no' ? 100 : 0 },
-      { key: 'gitProtection', weight: 15, riskValue: this.answers.gitProtection === 'no' ? 100 : 0 },
-      { key: 'securityMeasures', weight: 15, riskValue: this.calculateSecurityMeasuresRisk() },
-      { key: 'scaTools', weight: 10, riskValue: this.answers.scaTools === 'no' ? 100 : 0 },
-      { key: 'vulnerabilityScans', weight: 10, riskValue: this.answers.vulnerabilityScans === 'no' ? 100 : 0 },
-      { key: 'monitoringTools', weight: 10, riskValue: this.answers.monitoringTools === 'no' ? 100 : 0 },
-      { key: 'secretsManagement', weight: 10, riskValue: this.answers.secretsManagement === 'no' ? 100 : 0 },
-      { key: 'contingencyPlan', weight: 5, riskValue: this.answers.contingencyPlan === 'no' ? 100 : 0 },
-      { key: 'securityTraining', weight: 5, riskValue: this.answers.securityTraining === 'no' ? 100 : 0 }
-    ];
+  mapSecurityMeasuresToCVSS(): void {
+    const measures = this.answers.securityMeasures;
+    const implementedCount = Object.values(measures).filter(Boolean).length;
+    
+    // Security measures affect multiple CVSS metrics
+    if (implementedCount >= 4) {
+      this.answers.attackComplexity = 'high';
+      this.answers.integrityImpact = 'low';
+      this.answers.confidentialityImpact = 'low';
+    } else if (implementedCount >= 2) {
+      this.answers.attackComplexity = 'low';
+      this.answers.integrityImpact = 'low';
+    } else {
+      this.answers.attackComplexity = 'low';
+      this.answers.integrityImpact = 'high';
+      this.answers.confidentialityImpact = 'high';
+    }
+  }
 
-    factors.forEach(factor => {
-      totalRisk += (factor.riskValue * factor.weight) / 100;
-    });
-
-    this.globalRiskScore = Math.round(totalRisk);
+  calculateCVSSScores(): void {
+    this.cvssScores.exploitabilityScore = this.calculateExploitabilityScore();
+    this.cvssScores.impactScore = this.calculateImpactScore();
+    this.cvssScores.baseScore = this.calculateBaseScore();
+    this.cvssScores.temporalScore = this.calculateTemporalScore();
+    this.cvssScores.environmentalScore = this.calculateEnvironmentalScore();
+    this.cvssScores.overallRiskScore = this.calculateOverallRiskScore();
+    
     this.updateRiskCategories();
   }
 
-  calculateSecurityMeasuresRisk(): number {
-    const measures = this.answers.securityMeasures;
-    const implementedCount = Object.values(measures).filter(Boolean).length;
-    return ((3 - implementedCount) / 3) * 100;
+  calculateExploitabilityScore(): number {
+    const av = this.answers.attackVector? this.CVSS_MAPPINGS.attackVector[this.answers.attackVector]: 0.85;
+    const ac = this.answers.attackComplexity? this.CVSS_MAPPINGS.attackComplexity[this.answers.attackComplexity]: 0.77;
+    const pr = this.getPRValue();
+    const ui = this.answers.userInteraction? this.CVSS_MAPPINGS.userInteraction[this.answers.userInteraction]: 0.85;
+    
+    return 8.22 * av * ac * pr * ui;
+  }
+
+  calculateImpactScore(): number {
+    const c = this.answers.confidentialityImpact? this.CVSS_MAPPINGS.impact[this.answers.confidentialityImpact]: 0;
+    const i = this.answers.integrityImpact? this.CVSS_MAPPINGS.impact[this.answers.integrityImpact]: 0;
+    const a = this.answers.availabilityImpact? this.CVSS_MAPPINGS.impact[this.answers.availabilityImpact]: 0;
+
+
+    const iss = 1 - ((1 - c) * (1 - i) * (1 - a));
+    
+    if (this.answers.scope === 'changed') {
+      return 7.52 * (iss - 0.029) - 3.25 * Math.pow(iss - 0.02, 15);
+    } else {
+      return 6.42 * iss;
+    }
+  }
+
+  calculateBaseScore(): number {
+    const exploitability = this.cvssScores.exploitabilityScore;
+    const impact = this.cvssScores.impactScore;
+    
+    if (impact <= 0) return 0;
+    
+    if (this.answers.scope === 'changed') {
+      return Math.min(1.08 * (impact + exploitability), 10);
+    } else {
+      return Math.min(impact + exploitability, 10);
+    }
+  }
+
+  calculateTemporalScore(): number {
+    const base = this.cvssScores.baseScore;
+    const e = this.answers.exploitCodeMaturity? this.CVSS_MAPPINGS.temporal.exploitCodeMaturity[this.answers.exploitCodeMaturity]: 1;
+    const rl = this.answers.remediationLevel? this.CVSS_MAPPINGS.temporal.remediationLevel[this.answers.remediationLevel]: 1;
+    const rc = this.answers.reportConfidence? this.CVSS_MAPPINGS.temporal.reportConfidence[this.answers.reportConfidence]: 1;
+
+    return Math.round(base * e * rl * rc * 10) / 10;
+  }
+
+  calculateEnvironmentalScore(): number {
+    // Enhanced environmental score calculation
+    const temporal = this.cvssScores.temporalScore;
+    let modifier = 1.0;
+    
+    // Adjust based on project criticality
+    switch (this.answers.projectCriticality) {
+      case 'critical': modifier += 0.3; break;
+      case 'high': modifier += 0.2; break;
+      case 'medium': modifier += 0.1; break;
+      case 'low': modifier += 0.0; break;
+    }
+    
+    // Adjust based on team experience
+    switch (this.answers.teamExperience) {
+      case 'junior': modifier += 0.2; break;
+      case 'intermediate': modifier += 0.1; break;
+      case 'senior': modifier -= 0.1; break;
+      case 'expert': modifier -= 0.2; break;
+    }
+    
+    // Adjust based on hosting environment
+    switch (this.answers.hostingEnvironment) {
+      case 'cloud': modifier += 0.1; break;
+      case 'hybrid': modifier += 0.05; break;
+      case 'on-premise': modifier -= 0.05; break;
+    }
+    
+    return Math.min(temporal * modifier, 10);
+  }
+
+  calculateOverallRiskScore(): number {
+    // Weighted combination of all scores
+    const weights = this.riskCategories.reduce((acc, cat) => acc + cat.weight, 0);
+    
+    return this.riskCategories.reduce((total, category, index) => {
+      let score = 0;
+      switch (index) {
+        case 0: score = this.cvssScores.exploitabilityScore; break;
+        case 1: score = this.cvssScores.impactScore; break;
+        case 2: score = this.cvssScores.temporalScore; break;
+        case 3: score = this.cvssScores.environmentalScore; break;
+      }
+      return total + (score * category.weight);
+    }, 0);
+  }
+
+  private getPRValue(): number {
+    const scope = this.answers.scope || 'unchanged';
+    const pr = this.answers.privilegesRequired || 'none';
+    return this.CVSS_MAPPINGS.privilegesRequired[scope][pr] || 0.85;
   }
 
   updateRiskCategories(): void {
-    // Authentication
-    const authRisk = this.answers.mfa === 'no' ? 80 : 
-                    this.answers.secretsManagement === 'no' ? 40 : 10;
-    this.riskCategories[0] = {
-      name: 'Authentication',
-      score: authRisk,
-      status: authRisk > 60 ? 'danger' : authRisk > 30 ? 'warning' : 'success'
-    };
-
-    // Code Security
-    const codeRisk = this.calculateCodeSecurityRisk();
-    this.riskCategories[1] = {
-      name: 'Code Security',
-      score: codeRisk,
-      status: codeRisk > 60 ? 'danger' : codeRisk > 30 ? 'warning' : 'success'
-    };
-
-    // Infrastructure
-    const infraRisk = this.answers.monitoringTools === 'no' ? 60 : 20;
-    this.riskCategories[2] = {
-      name: 'Infrastructure',
-      score: infraRisk,
-      status: infraRisk > 60 ? 'danger' : infraRisk > 30 ? 'warning' : 'success'
-    };
-
-    // Compliance
-    const complianceRisk = this.answers.riskAssessment === 'no' ? 70 : 
-                          !this.answers.complianceStandards ? 50 : 15;
-    this.riskCategories[3] = {
-      name: 'Compliance',
-      score: complianceRisk,
-      status: complianceRisk > 60 ? 'danger' : complianceRisk > 30 ? 'warning' : 'success'
-    };
-
-    // Incident Response
-    const incidentRisk = this.answers.contingencyPlan === 'no' ? 80 : 20;
-    this.riskCategories[4] = {
-      name: 'Incident Response',
-      score: incidentRisk,
-      status: incidentRisk > 60 ? 'danger' : incidentRisk > 30 ? 'warning' : 'success'
-    };
+    // Exploitability Category
+    this.riskCategories[0].score = Math.round(this.cvssScores.exploitabilityScore * 10) / 10;
+    this.riskCategories[0].status = this.getStatusFromScore(this.cvssScores.exploitabilityScore, 10);
+    
+    // Impact Category
+    this.riskCategories[1].score = Math.round(this.cvssScores.impactScore * 10) / 10;
+    this.riskCategories[1].status = this.getStatusFromScore(this.cvssScores.impactScore, 10);
+    
+    // Temporal Category
+    this.riskCategories[2].score = Math.round(this.cvssScores.temporalScore * 10) / 10;
+    this.riskCategories[2].status = this.getStatusFromScore(this.cvssScores.temporalScore, 10);
+    
+    // Environmental Category
+    this.riskCategories[3].score = Math.round(this.cvssScores.environmentalScore * 10) / 10;
+    this.riskCategories[3].status = this.getStatusFromScore(this.cvssScores.environmentalScore, 10);
   }
 
-  calculateCodeSecurityRisk(): number {
-    let risk = 0;
-    if (this.answers.gitProtection === 'no') risk += 40;
-    if (this.answers.scaTools === 'no') risk += 30;
-    if (!this.answers.analysisTools) risk += 20;
-    if (this.answers.vulnerabilityScans === 'no') risk += 10;
-    return Math.min(risk, 100);
-  }
-
-  getRiskStatus(): 'success' | 'warning' | 'danger' {
-    if (this.globalRiskScore < 30) return 'success';
-    if (this.globalRiskScore < 70) return 'warning';
+  getStatusFromScore(score: number, maxScore: number): 'success' | 'warning' | 'danger' {
+    const percentage = (score / maxScore) * 100;
+    if (percentage < 30) return 'success';
+    if (percentage < 70) return 'warning';
     return 'danger';
   }
 
-   cloneGithubRepo() {
+  getCVSSSeverityRating(): string {
+    const score = this.cvssScores.environmentalScore || this.cvssScores.baseScore;
+    if (score >= 9.0) return 'Critical';
+    if (score >= 7.0) return 'High';
+    if (score >= 4.0) return 'Medium';
+    if (score >= 0.1) return 'Low';
+    return 'None';
+  }
+
+  getRiskColor(): string {
+    const rating = this.getCVSSSeverityRating();
+    switch (rating) {
+      case 'Critical': return '#d32f2f';
+      case 'High': return '#f57c00';
+      case 'Medium': return '#fbc02d';
+      case 'Low': return '#388e3c';
+      default: return '#757575';
+    }
+  }
+  
+get implementedSecurityMeasuresCount(): number {
+  return Object.values(this.answers.securityMeasures || {}).filter(value => !!value).length;
+}
+
+get implementedSecurityMeasuresStatus(): 'success' | 'warning' {
+  return this.implementedSecurityMeasuresCount >= 3 ? 'success' : 'warning';
+}
+
+  generateRecommendations(): void {
+    this.recommendations = [];
+    
+    // High exploitability recommendations
+    if (this.cvssScores.exploitabilityScore > 7) {
+      if (this.answers.mfa === 'no') {
+        this.recommendations.push({
+          category: 'Authentication',
+          priority: 'critical',
+          title: 'Implement Multi-Factor Authentication',
+          description: 'Enable MFA to increase Privileges Required metric and reduce exploitability',
+          cvssImpact: -2.5,
+          timeline: 'Immediate',
+          effort: 'low',
+          affectedMetrics: ['Privileges Required', 'Attack Complexity']
+        });
+      }
+      
+      if (this.answers.gitProtection === 'no') {
+        this.recommendations.push({
+          category: 'Access Control',
+          priority: 'high',
+          title: 'Enable Repository Protection Rules',
+          description: 'Implement branch protection to increase Attack Complexity',
+          cvssImpact: -1.8,
+          timeline: '1-2 weeks',
+          effort: 'medium',
+          affectedMetrics: ['Attack Complexity', 'User Interaction']
+        });
+      }
+      
+      if (this.answers.exploitMitigation === 'no') {
+        this.recommendations.push({
+          category: 'System Security',
+          priority: 'high',
+          title: 'Implement Exploit Mitigation Techniques',
+          description: 'Deploy ASLR, DEP, CSP and other exploit mitigation controls',
+          cvssImpact: -2.0,
+          timeline: '2-4 weeks',
+          effort: 'high',
+          affectedMetrics: ['Attack Complexity', 'Exploit Code Maturity']
+        });
+      }
+    }
+    
+    // High impact recommendations
+    if (this.cvssScores.impactScore > 6) {
+      if (this.answers.secretsManagement === 'no') {
+        this.recommendations.push({
+          category: 'Data Protection',
+          priority: 'critical',
+          title: 'Implement Secrets Management',
+          description: 'Deploy secrets management to reduce Confidentiality Impact',
+          cvssImpact: -2.0,
+          timeline: '2-3 weeks',
+          effort: 'high',
+          affectedMetrics: ['Confidentiality Impact', 'Integrity Impact']
+        });
+      }
+      
+      if (this.answers.monitoringTools === 'no') {
+        this.recommendations.push({
+          category: 'Monitoring',
+          priority: 'high',
+          title: 'Deploy Security Monitoring',
+          description: 'Implement monitoring tools to reduce Availability Impact',
+          cvssImpact: -1.5,
+          timeline: '3-4 weeks',
+          effort: 'high',
+          affectedMetrics: ['Availability Impact', 'Report Confidence']
+        });
+      }
+      
+      if (this.answers.networkSegmentation === 'no') {
+        this.recommendations.push({
+          category: 'Network Security',
+          priority: 'medium',
+          title: 'Implement Network Segmentation',
+          description: 'Segment networks to limit blast radius and reduce Attack Vector score',
+          cvssImpact: -1.2,
+          timeline: '4-6 weeks',
+          effort: 'high',
+          affectedMetrics: ['Attack Vector', 'Scope']
+        });
+      }
+    }
+    
+    // Temporal recommendations
+    if (this.answers.vulnerabilityScans === 'no') {
+      this.recommendations.push({
+        category: 'Vulnerability Management',
+        priority: 'medium',
+        title: 'Implement Regular Vulnerability Scanning',
+        description: 'Improve Report Confidence metric through systematic scanning',
+        cvssImpact: -0.8,
+        timeline: '2-4 weeks',
+        effort: 'medium',
+        affectedMetrics: ['Report Confidence', 'Remediation Level']
+      });
+    }
+    
+    if (this.answers.staticAnalysis === 'no' && this.answers.dynamicAnalysis === 'no') {
+      this.recommendations.push({
+        category: 'Code Security',
+        priority: 'medium',
+        title: 'Implement Static and Dynamic Analysis',
+        description: 'Deploy SAST/DAST tools to improve Exploit Code Maturity metrics',
+        cvssImpact: -1.0,
+        timeline: '3-5 weeks',
+        effort: 'medium',
+        affectedMetrics: ['Exploit Code Maturity', 'Report Confidence']
+      });
+    }
+    
+    // Environmental recommendations
+    if (this.answers.securityTraining === 'no') {
+      this.recommendations.push({
+        category: 'Training & Awareness',
+        priority: 'low',
+        title: 'Implement Security Training Program',
+        description: 'Regular security training reduces environmental risk factors',
+        cvssImpact: -0.5,
+        timeline: '4-8 weeks',
+        effort: 'medium',
+        affectedMetrics: ['Environmental Score', 'User Interaction']
+      });
+    }
+    
+    // Sort recommendations by priority and CVSS impact
+    this.recommendations.sort((a, b) => {
+      const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+      const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
+      if (priorityDiff !== 0) return priorityDiff;
+      return Math.abs(b.cvssImpact) - Math.abs(a.cvssImpact);
+    });
+  }
+  // Repository Analysis Methods (existing functionality)
+  cloneGithubRepo(): void {
     const payload = {
       type: 'public',
       repoUrl: this.answers.githubURL
     };
-    
-    console.log("📦 Payload to send:", payload);
     
     this.http.post<any>('http://localhost:5000/api/git', payload).subscribe({
       next: res => alert(`✅ GitHub Repo Cloned Successfully!\n📁 Path: ${res.path}`),
@@ -352,7 +645,7 @@ export class EvaluationComponent implements OnInit {
     });
   }
   
-  cloneGitlabRepo() {
+  cloneGitlabRepo(): void {
     const payload = {
       type: 'private',
       repoUrl: this.answers.gitlabURL,
@@ -364,312 +657,134 @@ export class EvaluationComponent implements OnInit {
       error: err => alert("❌ Error: " + err.error?.error)
     });
   }
-  
-// Repository Analysis with Automated Scanning
+
   analyzeRepository(type: 'github' | 'gitlab'): void {
     const url = type === 'github' ? this.answers.githubURL : this.answers.gitlabURL;
     if (!url) return;
 
     this.automatedScanInProgress = true;
-
-    // Mock repository analysis - In real implementation, this would call an actual API
-    setTimeout(() => {
-      this.repositoryAnalysis = {
-        type: type,
-        url: url,
-        findings: {
-          branches: type === 'github' ? this.analyzeGitHubRepo(url) : this.analyzeGitLabRepo(url),
-          secrets: Math.floor(Math.random() * 5),
-          vulnerabilities: Math.floor(Math.random() * 10),
-          dependencies: Math.floor(Math.random() * 50) + 50
-        },
-        recommendations: this.generateRepositoryRecommendations()
-      };
-      
-      // Update risk assessment based on repository analysis
-      this.updateRiskFromRepositoryAnalysis();
-
-      // If it's a GitLab repository, trigger automated scanning
-      if (type === 'gitlab' && this.answers.gitlabURL && this.answers.gitlabToken) {
-        this.startAutomatedScan();
-      } else {
-        this.automatedScanInProgress = false;
-      }
-    }, 2000);
-  }
-
-  // Start the automated scanning process
-  startAutomatedScan(): void {
-    console.log('🚀 Starting automated security scan...');
-    
-    // Step 1: Create GitLab project and push
-    this.createGitLabProjectAndPush();
-    
-    // Step 2: Wait for CI pipeline to complete (simulated delay)
-    setTimeout(() => {
-      this.saveScanResults();
-      this.automatedScanInProgress = false;
-    }, 10000); // 10 second delay to simulate CI pipeline execution
-  }
-
-  // Create GitLab project and push repository
-  createGitLabProjectAndPush() {
-    const payload = {
-      repoUrl: this.answers.gitlabURL,
-      token: this.answers.gitlabToken
-    };
-    
-    console.log("📦 Creating GitLab project and pushing...", payload);
-    
-    this.http.post<any>('http://localhost:5000/api/git/gitlab-push', payload).subscribe({
-      next: res => {
-        console.log(`✅ Project Created & Pushed to GitLab! URL: ${res.gitlabUrl}`);
-        alert(`🚀 Project Created & Pushed to GitLab!\n🌐 URL: ${res.gitlabUrl}`);
-        
-        // Update repository analysis with GitLab project info
-        if (this.repositoryAnalysis) {
-          this.repositoryAnalysis.gitlabProjectUrl = res.gitlabUrl;
-          this.repositoryAnalysis.automatedScanTriggered = true;
-        }
-      },
-      error: err => {
-        console.error("❌ Push Error:", err);
-        alert("❌ Push Error: " + err.error?.error);
-        this.automatedScanInProgress = false;
-      }
-    });
-  }
-
-  // Save scan results
-  saveScanResults() {
-    const result = {
-      repoUrl: this.answers.gitlabURL,
-      timestamp: new Date().toISOString(),
-      resultSummary: 'Automated security scan completed',
-      status: 'Completed',
+    this.repositoryAnalysis = {
+      type: type,
+      url: url,
       findings: {
-        vulnerabilities: this.repositoryAnalysis?.findings?.vulnerabilities || 0,
-        secrets: this.repositoryAnalysis?.findings?.secrets || 0,
-        dependencies: this.repositoryAnalysis?.findings?.dependencies || 0
+        branches: null,
+        secrets: 0,
+        vulnerabilities: 0,
+        dependencies: 0
       }
     };
-    
-    console.log("💾 Saving scan results...", result);
-    
-    this.http.post<any>('http://localhost:5000/api/git/scan-results', result).subscribe({
-      next: res => {
-        console.log("✅ Scan results saved successfully!");
-        alert("✅ Automated scan completed and results saved successfully!");
-        
-        // Store scan results for display
-    this.gitService.saveScanResult(result).subscribe({
-      next: (res) => {
-        console.log('Scan result saved:', res);
-        // You can use this data however you want
-      },
-      error: (err) => {
-        console.error('Error saving scan result:', err);
-      }
-    });
-        
-        // Update repository analysis with scan results
-        if (this.repositoryAnalysis) {
-          this.repositoryAnalysis.automatedScanResults = this.saveScanResults;
-          this.repositoryAnalysis.scanCompleted = true;
-        }
-      },
-      error: err => {
-        console.error("❌ Failed to save scan results:", err);
-        alert("❌ Failed to save scan results: " + err.error?.error);
-      }
-    });
+
+    this.startAutomatedScan(type);
   }
 
-    analyzeGitHubRepo(url: string): any {
-    // Mock GitHub API analysis
-    return {
-      totalBranches: Math.floor(Math.random() * 10) + 1,
-      protectedBranches: Math.floor(Math.random() * 3),
-      lastCommit: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-      contributors: Math.floor(Math.random() * 5) + 1
-    };
+  startAutomatedScan(type: 'github' | 'gitlab'): void {
+    this.analyzeClientRepositoryComplete(type);
   }
 
-  analyzeGitLabRepo(url: string): any {
-    // Mock GitLab API analysis
-    return {
-      totalBranches: Math.floor(Math.random() * 10) + 1,
-      protectedBranches: Math.floor(Math.random() * 3),
-      lastCommit: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-      contributors: Math.floor(Math.random() * 5) + 1
-    };
-  }
-
- 
-  generateRepositoryRecommendations(): string[] {
-    const recommendations = [
-      'Enable branch protection rules for main/master branch',
-      'Implement required pull request reviews',
-      'Add status checks before merging',
-      'Enable signed commits verification',
-      'Set up automated security scanning',
-      'Configure dependency vulnerability alerts',
-      'Implement secrets scanning',
-      'Add code quality gates'
-    ];
+  analyzeClientRepositoryComplete(type: 'github' | 'gitlab'): void {
+    const repoUrl = type === 'github' ? this.answers.githubURL : this.answers.gitlabURL;
+    const token = type === 'github' ? this.answers.githubToken : this.answers.gitlabToken;
     
-    return recommendations.slice(0, Math.floor(Math.random() * 4) + 3);
-  }
-
-  updateRiskFromRepositoryAnalysis(): void {
-    if (!this.repositoryAnalysis) return;
-
-    const findings = this.repositoryAnalysis.findings;
-    
-    // Adjust git protection risk based on actual repository state
-    if (findings.branches.protectedBranches === 0) {
-      this.answers.gitProtection = 'no';
-    } else {
-      this.answers.gitProtection = 'yes';
+    if (!repoUrl) {
+      this.automatedScanInProgress = false;
+      return;
     }
 
-    // Update current question risk assessment
-    this.assessQuestionRisk('gitProtection', this.answers.gitProtection);
-    this.updateGlobalRiskScore();
+    const payload = { repoUrl: repoUrl, token: token };
+
+    this.http.post('http://localhost:5000/api/git/analyze', payload).subscribe({
+      next: (res: any) => {
+        if (this.repositoryAnalysis) {
+          this.repositoryAnalysis.gitlabProjectUrl = res.analysisRepo?.url;
+          this.repositoryAnalysis.pipelineUrl = res.analysisRepo?.pipelineUrl;
+          this.repositoryAnalysis.automatedScanTriggered = true;
+          this.repositoryAnalysis.analysisRepoId = res.analysisRepo?.id;
+        }
+
+        alert(`🚀 Repository Analysis Setup Completed!
+🌐 Analysis Repository: ${res.analysisRepo?.url}
+📊 Pipeline: ${res.analysisRepo?.pipelineUrl}`);
+
+        this.waitForPipelineCompletion(res.analysisRepo?.id);
+      },
+      error: (err) => {
+        alert("❌ Repository analysis failed: " + (err.error?.details || err.error?.error || 'Unknown error'));
+        this.automatedScanInProgress = false;
+      }
+    });
   }
 
-  // Risk Matrix
-  getCellClass(probability: number, impact: number): string {
-    const riskScore = probability * impact;
-    if (riskScore <= 5) return 'low';
-    if (riskScore <= 10) return 'medium';
-    if (riskScore <= 15) return 'high';
-    return 'critical';
+  waitForPipelineCompletion(analysisRepoId: string): void {
+    setTimeout(() => {
+      this.saveScanResults(analysisRepoId);
+    }, 15000); 
   }
 
-  getRiskCountInCell(probability: number, impact: number): number {
-    // Mock risk count calculation based on current assessment
-    const riskScore = probability * impact;
-    return Math.floor(Math.random() * 3) + (riskScore > 10 ? 2 : 0);
+  saveScanResults(analysisRepoId?: string): void {
+    const result = {
+      repoUrl: this.answers.gitlabURL || this.answers.githubURL,
+      analysisRepoId: analysisRepoId,
+      timestamp: new Date().toISOString(),
+      cvssScore: this.cvssScores.baseScore,
+      severity: this.getCVSSSeverityRating(),
+      findings: this.repositoryAnalysis?.findings || {}
+    };
+
+    this.http.post('http://localhost:5000/api/git/scan-results', result).subscribe({
+      next: (res) => {
+        alert("✅ Automated scan completed and results saved successfully!");
+        this.automatedScanInProgress = false;
+      },
+      error: (err) => {
+        alert("❌ Failed to save scan results: " + (err.error?.details || err.error?.error));
+        this.automatedScanInProgress = false;
+      }
+    });
   }
 
-  showRisksInCell(probability: number, impact: number): void {
-    // Mock implementation - would show detailed risks in this cell
-    console.log(`Showing risks for probability: ${probability}, impact: ${impact}`);
-  }
-
-  // Final Report Generation
+  // Report Generation Methods
   generateFinalReport(): void {
-    this.generateActionPlan();
-    this.showRiskMatrix = true;
-    
     this.finalReport = {
       projectName: this.answers.projectName,
       assessmentDate: new Date(),
-      globalRiskScore: this.globalRiskScore,
-      riskCategories: this.riskCategories,
-      recommendations: this.generateRecommendations(),
-      actionPlan: this.actionPlan,
-      repositoryAnalysis: this.repositoryAnalysis
+      cvssScores: { ...this.cvssScores },
+      severityRating: this.getCVSSSeverityRating(),
+      riskCategories: [...this.riskCategories],
+      recommendations: [...this.recommendations],
+      repositoryAnalysis: this.repositoryAnalysis,
+      securityMetrics: this.getSecurityMetricsSummary()
     };
   }
 
-  generateActionPlan(): void {
-    this.actionPlan = [];
-
-    // High priority actions based on risk assessment
-    if (this.answers.mfa === 'no') {
-      this.actionPlan.push({
-        title: 'Implement Multi-Factor Authentication',
-        priority: 'high',
-        description: 'Enable MFA for all accounts with access to the repository and related systems',
-        timeline: 'Immediate - 1 week',
-        resources: 'Admin privileges, MFA app/hardware tokens',
-        completed: false
-      });
-    }
-
-    if (this.answers.gitProtection === 'no') {
-      this.actionPlan.push({
-        title: 'Configure Repository Protection Rules',
-        priority: 'high',
-        description: 'Set up branch protection, require pull request reviews, and enable status checks',
-        timeline: '1-2 weeks',
-        resources: 'Repository admin access, CI/CD pipeline configuration',
-        completed: false
-      });
-    }
-
-    if (this.answers.scaTools === 'no') {
-      this.actionPlan.push({
-        title: 'Implement Software Composition Analysis',
-        priority: 'medium',
-        description: 'Deploy SCA tools like Snyk or OWASP Dependency-Check to monitor dependencies',
-        timeline: '2-4 weeks',
-        resources: 'SCA tool subscription, CI/CD integration',
-        completed: false
-      });
-    }
-
-    if (this.answers.secretsManagement === 'no') {
-      this.actionPlan.push({
-        title: 'Implement Secrets Management',
-        priority: 'high',
-        description: 'Deploy a secrets management solution and audit existing code for hardcoded secrets',
-        timeline: '2-3 weeks',
-        resources: 'Secrets management tool, code audit time',
-        completed: false
-      });
-    }
-
-    if (this.answers.contingencyPlan === 'no') {
-      this.actionPlan.push({
-        title: 'Develop Incident Response Plan',
-        priority: 'medium',
-        description: 'Create a comprehensive incident response plan including breach procedures',
-        timeline: '3-4 weeks',
-        resources: 'Security team, legal consultation, documentation time',
-        completed: false
-      });
-    }
-
-    if (this.answers.securityTraining === 'no') {
-      this.actionPlan.push({
-        title: 'Establish Security Training Program',
-        priority: 'low',
-        description: 'Implement regular security awareness training for development team',
-        timeline: '1-2 months',
-        resources: 'Training materials, dedicated training time',
-        completed: false
-      });
-    }
+  getSecurityMetricsSummary(): any {
+    return {
+      baseMetrics: {
+        attackVector: this.answers.attackVector,
+        attackComplexity: this.answers.attackComplexity,
+        privilegesRequired: this.answers.privilegesRequired,
+        userInteraction: this.answers.userInteraction,
+        scope: this.answers.scope,
+        confidentialityImpact: this.answers.confidentialityImpact,
+        integrityImpact: this.answers.integrityImpact,
+        availabilityImpact: this.answers.availabilityImpact
+      },
+      temporalMetrics: {
+        exploitCodeMaturity: this.answers.exploitCodeMaturity,
+        remediationLevel: this.answers.remediationLevel,
+        reportConfidence: this.answers.reportConfidence
+      },
+      securityPractices: {
+        mfa: this.answers.mfa,
+        gitProtection: this.answers.gitProtection,
+        secretsManagement: this.answers.secretsManagement,
+        staticAnalysis: this.answers.staticAnalysis,
+        dynamicAnalysis: this.answers.dynamicAnalysis,
+        scaTools: this.answers.scaTools,
+        vulnerabilityScans: this.answers.vulnerabilityScans
+      }
+    };
   }
 
-  generateRecommendations(): string[] {
-    const recommendations = [];
-
-    // General security recommendations
-    recommendations.push('Implement a comprehensive security policy');
-    recommendations.push('Conduct regular security audits and assessments');
-    recommendations.push('Establish monitoring and alerting systems');
-    
-    // Specific recommendations based on answers
-    if (!this.answers.analysisTools) {
-      recommendations.push('Integrate static and dynamic analysis tools into your development workflow');
-    }
-
-    if (!this.answers.complianceStandards) {
-      recommendations.push('Consider compliance with relevant security standards (ISO 27001, GDPR, etc.)');
-    }
-
-    if (!this.answers.securityUpdates || this.answers.securityUpdates.toLowerCase().includes('monthly')) {
-      recommendations.push('Increase frequency of security updates to weekly or as needed');
-    }
-
-    return recommendations;
-  }
-
-  // Export Functions
   exportToPDF(): void {
     if (!this.finalReport) return;
 
@@ -678,32 +793,36 @@ export class EvaluationComponent implements OnInit {
 
     // Title
     doc.setFontSize(20);
-    doc.text('Security Assessment Report', 20, yPosition);
+    doc.text('CVSS Security Assessment Report', 20, yPosition);
     yPosition += 20;
 
-    // Project Information
+    // CVSS Scores
     doc.setFontSize(14);
     doc.text(`Project: ${this.finalReport.projectName}`, 20, yPosition);
     yPosition += 10;
-    doc.text(`Assessment Date: ${this.finalReport.assessmentDate.toLocaleDateString()}`, 20, yPosition);
-    yPosition += 10;
-    doc.text(`Global Risk Score: ${this.finalReport.globalRiskScore}%`, 20, yPosition);
+    doc.text(`CVSS Base Score: ${this.finalReport.cvssScores.baseScore.toFixed(1)}`, 20, yPosition);
+    yPosition += 8;
+    doc.text(`Severity Rating: ${this.finalReport.severityRating}`, 20, yPosition);
+    yPosition += 8;
+    doc.text(`Temporal Score: ${this.finalReport.cvssScores.temporalScore.toFixed(1)}`, 20, yPosition);
+    yPosition += 8;
+    doc.text(`Environmental Score: ${this.finalReport.cvssScores.environmentalScore.toFixed(1)}`, 20, yPosition);
     yPosition += 20;
 
     // Risk Categories
     doc.text('Risk Categories:', 20, yPosition);
     yPosition += 10;
     this.riskCategories.forEach(category => {
-      doc.text(`${category.name}: ${category.score}%`, 30, yPosition);
+      doc.text(`${category.name}: ${category.score}/${category.maxScore}`, 30, yPosition);
       yPosition += 8;
     });
 
-    // Action Plan
+    // Recommendations
     yPosition += 10;
-    doc.text('Action Plan:', 20, yPosition);
+    doc.text('Priority Recommendations:', 20, yPosition);
     yPosition += 10;
-    this.actionPlan.forEach((action, index) => {
-      doc.text(`${index + 1}. ${action.title} (${action.priority} priority)`, 30, yPosition);
+    this.recommendations.slice(0, 5).forEach((rec, index) => {
+      doc.text(`${index + 1}. ${rec.title} (${rec.priority})`, 30, yPosition);
       yPosition += 8;
       if (yPosition > 270) {
         doc.addPage();
@@ -714,53 +833,6 @@ export class EvaluationComponent implements OnInit {
     doc.save('security-assessment-report.pdf');
   }
 
-  exportToExcel(): void {
-    if (!this.finalReport) return;
-
-    const workbook = XLSX.utils.book_new();
-
-    // Summary sheet
-    const summaryData = [
-      ['Project Name', this.finalReport.projectName],
-      ['Assessment Date', this.finalReport.assessmentDate.toLocaleDateString()],
-      ['Global Risk Score', `${this.finalReport.globalRiskScore}%`],
-      [''],
-      ['Risk Categories', ''],
-      ...this.riskCategories.map(cat => [cat.name, `${cat.score}%`])
-    ];
-    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-    // Action Plan sheet
-    const actionPlanData = [
-      ['Title', 'Priority', 'Description', 'Timeline', 'Resources', 'Completed'],
-      ...this.actionPlan.map(action => [
-        action.title,
-        action.priority,
-        action.description,
-        action.timeline,
-        action.resources,
-        action.completed ? 'Yes' : 'No'
-      ])
-    ];
-    const actionPlanSheet = XLSX.utils.aoa_to_sheet(actionPlanData);
-    XLSX.utils.book_append_sheet(workbook, actionPlanSheet, 'Action Plan');
-
-    // Detailed Assessment sheet
-    const assessmentData = [
-      ['Question', 'Answer', 'Risk Level'],
-      ['Multi-Factor Authentication', this.answers.mfa, this.answers.mfa === 'no' ? 'High' : 'Low'],
-      ['Repository Protection', this.answers.gitProtection, this.answers.gitProtection === 'no' ? 'High' : 'Low'],
-      ['SCA Tools', this.answers.scaTools, this.answers.scaTools === 'no' ? 'Medium' : 'Low'],
-      ['Vulnerability Scans', this.answers.vulnerabilityScans, this.answers.vulnerabilityScans === 'no' ? 'Medium' : 'Low'],
-      ['Secrets Management', this.answers.secretsManagement, this.answers.secretsManagement === 'no' ? 'High' : 'Low'],
-      ['Incident Response Plan', this.answers.contingencyPlan, this.answers.contingencyPlan === 'no' ? 'Medium' : 'Low']
-    ];
-    const assessmentSheet = XLSX.utils.aoa_to_sheet(assessmentData);
-    XLSX.utils.book_append_sheet(workbook, assessmentSheet, 'Assessment Details');
-
-    XLSX.writeFile(workbook, 'security-assessment.xlsx');
-  }
 
   sendEmailReport(): void {
     if (!this.answers.email || !this.finalReport) return;

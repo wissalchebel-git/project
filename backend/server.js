@@ -42,11 +42,7 @@ app.use(bodyParser.json());
 
 // CORS
 app.use(cors({
-    origin: [
-    'http://localhost:4200',        // Local development
-    'http://security-portal',       // Docker container
-    
-  ],
+  origin: ['https://security-portal', 'http://security-portal'],
   credentials: true
 }));
 
@@ -60,6 +56,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/git', gitRoutes);
+app.use('//api/git/analyse', gitRoutes);
+app.use('//api/git/gitlab-push', gitRoutes);
 app.use('/scan-results', gitRoutes);
 
 // Error handling middleware

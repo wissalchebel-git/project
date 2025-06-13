@@ -12,7 +12,9 @@ services:
       MONGO_INITDB_DATABASE: security-portal
     volumes:
       - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
-
+    networks:
+      - web-network
+      
   backend:
     build: ./backend
     container_name: pfe-backend
@@ -23,6 +25,8 @@ services:
     depends_on:
       - mongo
     command: npm start
+    networks:
+      - web-network
 
   frontend:
     build: ./security-portal
