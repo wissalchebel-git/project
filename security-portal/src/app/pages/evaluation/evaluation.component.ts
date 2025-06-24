@@ -119,7 +119,26 @@ interface SecurityRecommendation {
   effort: 'low' | 'medium' | 'high';
   affectedMetrics: string[];
 }
+interface RiskAssessment {
+  status: 'warning' | 'danger' | 'success'; 
+  message: string;
+  consequence?: string;
+  recommendation?: string; 
+}
 
+interface AnalyzeRepoResponse {
+  success: boolean;
+  message: string;
+  analysisRepo?: {
+    id: number; // GitLab's numerical project ID
+    name: string;
+    url: string;
+    pipelineUrl: string;
+  };
+  mongoProjectId?: string; 
+  error?: string;
+  details?: string;
+}
 @Component({
   selector: 'app-evaluation',
   templateUrl: './evaluation.component.html',
@@ -176,6 +195,7 @@ export class EvaluationComponent implements OnInit {
   // Add this property to your component class
 actionPlan: ActionPlanItem[] = [];
 
+currentQuestionRisk: { [key: string]: RiskAssessment } = {};
   recommendations: SecurityRecommendation[] = [];
   repositoryAnalysis: any = null;
   automatedScanInProgress: boolean = false;
@@ -224,6 +244,9 @@ actionPlan: ActionPlanItem[] = [];
     this.mapSecurityPracticesToCVSS(questionKey, value);
     this.calculateCVSSScores();
     this.generateRecommendations();
+  
+    this.assessQuestionRisk(questionKey, value);
+   
   }
 
   onSecurityMeasureChange(measure: string, value: boolean): void {
@@ -332,7 +355,260 @@ actionPlan: ActionPlanItem[] = [];
       this.answers.confidentialityImpact = 'high';
     }
   }
+assessQuestionRisk(questionKey: string, value: any): void {
+  switch (questionKey) {
+    case 'projectName':
+      if (!value || value.trim().length === 0) {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Project identification is important for security tracking'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey];
+      }
+      break;
 
+    case 'repoType':
+      if (value === 'public') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Public repositories increase exposure risk',
+          consequence: 'Source code and potential secrets exposed to public',
+          recommendation: 'Ensure no sensitive data is committed and implement proper access controls'
+        };
+      } else if (value === 'private') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Private repositories provide better security control'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey]; // Clear risk if no type selected
+      }
+      break;
+
+    case 'mfa':
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'danger',
+          message: 'HIGH RISK: No multi-factor authentication',
+          consequence: 'Account compromise through credential theft or brute force attacks',
+          recommendation: 'Immediately implement MFA for all accounts with repository access'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'MFA provides strong authentication security'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey]; // Clear risk if no selection
+      }
+      break;
+
+    case 'gitProtection':
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'danger',
+          message: 'HIGH RISK: No repository protection rules',
+          consequence: 'Unauthorized changes, malicious code injection, accidental deletions',
+          recommendation: 'Configure branch protection, require reviews, and enable signed commits'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Repository protection rules enhance code security'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey]; // Clear risk if no selection
+      }
+      break;
+
+    case 'securityMeasures':
+      const measures = value as { [key: string]: boolean }; // Cast value to the expected type
+      const implementedCount = Object.values(measures).filter(Boolean).length;
+
+      if (implementedCount === 0) {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'danger',
+          message: 'CRITICAL: No security measures implemented'
+        };
+      } else if (implementedCount <= 1) {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Limited security measures - consider implementing additional controls'
+        };
+      } else if (implementedCount === 2) {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Good security foundation - consider implementing all three measures'
+        };
+      } else {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Comprehensive security measures implemented'
+        };
+      }
+      break;
+
+    case 'analysisTools': // This case was not in the original HTML, adding based on its likely purpose
+      if (!value || value.trim().length === 0) {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Static/Dynamic analysis tools help identify vulnerabilities early'
+        };
+      } else {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Analysis tools enhance code security'
+        };
+      }
+      break;
+
+    case 'scaTools':
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Software Composition Analysis helps identify vulnerable dependencies'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'SCA tools provide important dependency security'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey]; // Clear risk if no selection
+      }
+      break;
+
+    // Cases for 'secretsManagement', 'exploitMitigation', 'monitoringTools', 'contingencyPlan', 'staticAnalysis', 'dynamicAnalysis', 'vulnerabilityScans' based on the HTML
+    case 'secretsManagement':
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'danger',
+          message: 'CRITICAL RISK: Poor secrets management affects Confidentiality Impact',
+          consequence: 'API keys, passwords exposed',
+          recommendation: 'Implement proper secrets management'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Secrets management tools are in use'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey];
+      }
+      break;
+
+    case 'exploitMitigation':
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Medium Risk: Missing exploit mitigation affects Attack Complexity',
+          recommendation: 'Implement ASLR, DEP, CSP, and other mitigations'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Exploit mitigation techniques are in place'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey];
+      }
+      break;
+
+    case 'monitoringTools':
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Medium Risk: No monitoring affects incident detection',
+          consequence: 'Delayed breach detection',
+          recommendation: 'Implement security monitoring and SIEM'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Security monitoring tools are in place'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey];
+      }
+      break;
+
+    case 'contingencyPlan':
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'danger',
+          message: 'High Risk: No contingency plan affects Availability Impact',
+          consequence: 'Extended downtime during incidents',
+          recommendation: 'Develop and test disaster recovery procedures'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Contingency/disaster recovery plan is in place'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey];
+      }
+      break;
+
+    case 'staticAnalysis':
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Medium Risk: No SAST affects Exploit Code Maturity assessment',
+          recommendation: 'Implement static code analysis tools'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Static Application Security Testing (SAST) is in use'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey];
+      }
+      break;
+
+    case 'dynamicAnalysis':
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Medium Risk: No DAST affects runtime vulnerability detection',
+          recommendation: 'Implement dynamic security testing'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Dynamic Application Security Testing (DAST) is in use'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey];
+      }
+      break;
+
+    case 'vulnerabilityScans':
+      // Assuming 'no' is a warning, 'yes' is success.
+      // If there are more nuanced statuses (e.g., based on frequency), they would be added here.
+      if (value === 'no') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'warning',
+          message: 'Regular vulnerability scans are important for identifying weaknesses'
+        };
+      } else if (value === 'yes') {
+        this.currentQuestionRisk[questionKey] = {
+          status: 'success',
+          message: 'Regular vulnerability scans are performed'
+        };
+      } else {
+        delete this.currentQuestionRisk[questionKey];
+      }
+      break;
+
+    default:
+      // For questions without specific risk logic, ensure no lingering risk indicator
+      delete this.currentQuestionRisk[questionKey];
+      break;
+  }
+}
   calculateCVSSScores(): void {
     this.cvssScores.exploitabilityScore = this.calculateExploitabilityScore();
     this.cvssScores.impactScore = this.calculateImpactScore();
@@ -658,33 +934,26 @@ get implementedSecurityMeasuresStatus(): 'success' | 'warning' {
     });
   }
 
+// Frontend method to initiate the analysis flow
   analyzeRepository(type: 'github' | 'gitlab'): void {
-    const url = type === 'github' ? this.answers.githubURL : this.answers.gitlabURL;
-    if (!url) return;
+    const repoUrl = type === 'github' ? this.answers.githubURL : this.answers.gitlabURL;
+    if (!repoUrl) return;
 
     this.automatedScanInProgress = true;
     this.repositoryAnalysis = {
       type: type,
-      url: url,
-      findings: {
-        branches: null,
-        secrets: 0,
-        vulnerabilities: 0,
-        dependencies: 0
-      }
+      url: repoUrl,
+      // Initial findings will come from the backend's initial save, not from here
+      // You'll get actual scan results from the CI pipeline later
     };
 
     this.startAutomatedScan(type);
   }
 
   startAutomatedScan(type: 'github' | 'gitlab'): void {
-    this.analyzeClientRepositoryComplete(type);
-  }
-
-  analyzeClientRepositoryComplete(type: 'github' | 'gitlab'): void {
     const repoUrl = type === 'github' ? this.answers.githubURL : this.answers.gitlabURL;
     const token = type === 'github' ? this.answers.githubToken : this.answers.gitlabToken;
-    
+
     if (!repoUrl) {
       this.automatedScanInProgress = false;
       return;
@@ -692,20 +961,39 @@ get implementedSecurityMeasuresStatus(): 'success' | 'warning' {
 
     const payload = { repoUrl: repoUrl, token: token };
 
-    this.http.post('http://localhost:5000/api/git/analyze', payload).subscribe({
-      next: (res: any) => {
+    // 1. Call your backend's analyzeClientRepository endpoint
+    this.http.post<AnalyzeRepoResponse>('http://localhost:5000/api/git/analyze', payload).subscribe({
+      next: (res) => {
+        if (!res.success) {
+          alert("❌ Repository analysis failed: " + (res.details || res.error || 'Unknown error from backend'));
+          this.automatedScanInProgress = false;
+          return;
+        }
+
         if (this.repositoryAnalysis) {
           this.repositoryAnalysis.gitlabProjectUrl = res.analysisRepo?.url;
           this.repositoryAnalysis.pipelineUrl = res.analysisRepo?.pipelineUrl;
           this.repositoryAnalysis.automatedScanTriggered = true;
-          this.repositoryAnalysis.analysisRepoId = res.analysisRepo?.id;
+          this.repositoryAnalysis.analysisRepoId = res.analysisRepo?.id; // GitLab's numerical ID
+        }
+
+        const gitlabProjectId = res.analysisRepo?.id;
+        const mongoProjectId = res.mongoProjectId; // This is what we need!
+
+        if (!gitlabProjectId || !mongoProjectId) {
+          alert("❌ Backend did not return required GitLab Project ID or MongoDB Project ID.");
+          this.automatedScanInProgress = false;
+          return;
         }
 
         alert(`🚀 Repository Analysis Setup Completed!
-🌐 Analysis Repository: ${res.analysisRepo?.url}
-📊 Pipeline: ${res.analysisRepo?.pipelineUrl}`);
+        🌐 Analysis Repository: ${res.analysisRepo?.url}
+        📊 Pipeline: ${res.analysisRepo?.pipelineUrl}
+        MongoDB Project ID: ${mongoProjectId}`); // For debugging
 
-        this.waitForPipelineCompletion(res.analysisRepo?.id);
+        // 2. Immediately trigger the GitLab CI pipeline
+        this.triggerGitLabPipeline(gitlabProjectId, mongoProjectId);
+
       },
       error: (err) => {
         alert("❌ Repository analysis failed: " + (err.error?.details || err.error?.error || 'Unknown error'));
@@ -714,33 +1002,60 @@ get implementedSecurityMeasuresStatus(): 'success' | 'warning' {
     });
   }
 
-  waitForPipelineCompletion(analysisRepoId: string): void {
-    setTimeout(() => {
-      this.saveScanResults(analysisRepoId);
-    }, 15000); 
-  }
+  // New method to trigger the GitLab CI pipeline
+  triggerGitLabPipeline(gitlabProjectId: number, mongoProjectId: string): void {
+    // You need a way to get your GitLab PRIVATE_TOKEN on the frontend (or proxy this call through your backend)
+    // Directly exposing private tokens on the frontend is generally NOT recommended for production.
+    // For development, you might hardcode it or use an environment variable.
+    // For production, create a backend endpoint that acts as a proxy to GitLab API.
+    const GITLAB_PIPELINE_TOKEN = 'glpat-KgbFnsExshmNRh1iHoEs' // <--- IMPORTANT: Replace with your actual token
+                                                              // or proxy this call via your backend
 
-  saveScanResults(analysisRepoId?: string): void {
-    const result = {
-      repoUrl: this.answers.gitlabURL || this.answers.githubURL,
-      analysisRepoId: analysisRepoId,
-      timestamp: new Date().toISOString(),
-      cvssScore: this.cvssScores.baseScore,
-      severity: this.getCVSSSeverityRating(),
-      findings: this.repositoryAnalysis?.findings || {}
-    };
+    if (!GITLAB_PIPELINE_TOKEN) {
+      alert("Error: GitLab Private Token is not configured for pipeline triggering.");
+      this.automatedScanInProgress = false;
+      return;
+    }
 
-    this.http.post('http://localhost:5000/api/git/scan-results', result).subscribe({
-      next: (res) => {
-        alert("✅ Automated scan completed and results saved successfully!");
-        this.automatedScanInProgress = false;
+    const gitlabPipelineApiUrl = `https://gitlab.com/api/v4/projects/${gitlabProjectId}/pipeline`;
+
+    const pipelinePayload = {
+  ref: 'master', 
+  variables: [ 
+    { key: 'MONGO_PROJECT_ID', value: mongoProjectId } 
+  ]
+};
+
+    this.http.post(gitlabPipelineApiUrl, pipelinePayload, {
+      headers: {
+        'PRIVATE-TOKEN': GITLAB_PIPELINE_TOKEN,
+        'Content-Type': 'application/json'
+      }
+    }).subscribe({
+      next: (res: any) => {
+        alert(`✅ GitLab CI Pipeline Triggered! View at: ${res.web_url}`);
+        // Now the pipeline will run and post results to your backend.
+        // The frontend's job here is mostly done, maybe indicate "Scanning..."
+        // You might set up a WebSocket or polling mechanism to get live updates later.
+        this.automatedScanInProgress = false; // Scan is now running in CI
       },
       error: (err) => {
-        alert("❌ Failed to save scan results: " + (err.error?.details || err.error?.error));
+        console.error("GitLab API error response:", err.error); 
+        alert("❌ Failed to trigger GitLab CI pipeline: " + (err.error?.message || err.message));
         this.automatedScanInProgress = false;
       }
     });
   }
+
+
+  // Scan results are now sent by the GitLab CI pipeline.
+  // You might keep a method for *displaying* results once they are saved to your DB
+  // and retrieved from your backend.
+  // saveScanResults(analysisRepoId?: string): void {
+  //   // This logic is now handled by the CI pipeline jobs for each tool.
+  //   // Remove this method or repurpose it for fetching *saved* results.
+  //   console.warn("saveScanResults method in frontend is obsolete for sending data. It should be removed or repurposed.");
+  // }
 
   // Report Generation Methods
   generateFinalReport(): void {

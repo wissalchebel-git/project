@@ -1,8 +1,15 @@
-FROM node:23.8.0-alpine3.21 
+FROM node:18-slim 
 
+# Set working directory
 WORKDIR /usr/src/app
 
-RUN apk update && apk add --no-cache git
+# Install necessary packages (using apt for Debian-based images)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git && \
+    rm -rf /var/lib/apt/lists/*
+
 
 COPY package*.json ./
 

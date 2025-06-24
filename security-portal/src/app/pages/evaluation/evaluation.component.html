@@ -30,522 +30,587 @@
 
   <!-- Project Information Section -->
   <nb-card class="mb-4">
-    <nb-card-header>
-      <h4>📋 Project Information</h4>
-    </nb-card-header>
-    <nb-card-body>
-      <div class="row">
-        <div class="col-md-6">
-          <label class="label">1. What is the name of your project? *</label>
-          <input nbInput 
-                 fullWidth 
-                 placeholder="Enter project name"
-                 [(ngModel)]="answers.projectName" 
-                 (ngModelChange)="onAnswerChange('projectName', $event)">
-          <nb-alert *ngIf="!answers.projectName" status="warning" class="mt-2">
-            ⚠️ Project name is required for assessment context
-          </nb-alert>
-        </div>
-        
-        <div class="col-md-6">
-          <label class="label">2. Where is your project hosted? *</label>
-          <nb-radio-group [(ngModel)]="answers.repoType" 
-                          (ngModelChange)="onAnswerChange('repoType', $event)">
-            <nb-radio value="public">Public GitHub Repository</nb-radio>
-            <nb-radio value="private">Private GitLab Repository</nb-radio>
-          </nb-radio-group>
-          
-          <!-- GitHub Section -->
-          <div *ngIf="answers.repoType === 'public'" class="mt-3">
-            <input nbInput 
-                   fullWidth 
-                   placeholder="GitHub Repository URL"
-                   [(ngModel)]="answers.githubURL">
-            <input nbInput 
-                   fullWidth 
-                   placeholder="GitHub Token (optional)"
-                   [(ngModel)]="answers.githubToken"
-                   class="mt-2">
-            <div class="mt-2">
-              <button nbButton status="primary" (click)="cloneGithubRepo()" class="me-2">
-                Clone Repository
-              </button>
-              <button nbButton status="info" (click)="analyzeRepository('github')">
-                Analyze Repository
-              </button>
-            </div>
-          </div>
-          
-          <!-- GitLab Section -->
-          <div *ngIf="answers.repoType === 'private'" class="mt-3">
-            <input nbInput 
-                   fullWidth 
-                   placeholder="GitLab Repository URL"
-                   [(ngModel)]="answers.gitlabURL">
-            <input nbInput 
-                   fullWidth 
-                   placeholder="GitLab Access Token *"
-                   [(ngModel)]="answers.gitlabToken"
-                   class="mt-2">
-            <div class="mt-2">
-              <button nbButton status="primary" (click)="cloneGitlabRepo()" class="me-2">
-                Clone Repository
-              </button>
-              <button nbButton status="info" (click)="analyzeRepository('gitlab')">
-                Analyze Repository
-              </button>
-            </div>
-          </div>
-          
-          <nb-alert *ngIf="!answers.repoType" status="danger" class="mt-2">
-            🚨 Repository type affects Attack Vector score - please select hosting type
+  <nb-card-header>
+    <h4>📋 Project Information</h4>
+  </nb-card-header>
+  <nb-card-body>
+    <div class="row">
+      <div class="col-md-6">
+        <label class="label">1. What is the name of your project? *</label>
+        <input nbInput
+               fullWidth
+               placeholder="Enter project name"
+               [(ngModel)]="answers.projectName"
+               (ngModelChange)="onAnswerChange('projectName', $event)">
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['projectName']">
+          <nb-alert [status]="currentQuestionRisk['projectName'].status">
+            {{ currentQuestionRisk['projectName'].message }}
           </nb-alert>
         </div>
       </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-4">
-          <label class="label">3. What is the main objective of your project?</label>
-          <textarea nbInput 
-                    fullWidth 
-                    placeholder="Describe project objective"
-                    [(ngModel)]="answers.projectObjective"
-                    rows="3">
+
+      <div class="col-md-6">
+        <label class="label">2. Where is your project hosted? *</label>
+        <nb-radio-group [(ngModel)]="answers.repoType"
+                        (ngModelChange)="onAnswerChange('repoType', $event)">
+          <nb-radio value="public">GitHub Repository</nb-radio>
+          <nb-radio value="private">GitLab Repository</nb-radio>
+        </nb-radio-group>
+
+        <div *ngIf="answers.repoType === 'public'" class="mt-3">
+          <input nbInput
+                 fullWidth
+                 placeholder="GitHub Repository URL"
+                 [(ngModel)]="answers.githubURL">
+          <input nbInput
+                 fullWidth
+                 placeholder="GitHub Token (optional)"
+                 [(ngModel)]="answers.githubToken"
+                 type="password"
+                 class="mt-2">
+          <div class="mt-2">
+            <button nbButton status="primary" (click)="cloneGithubRepo()" class="me-2">
+              Clone Repository
+            </button>
+            <button nbButton status="info" (click)="analyzeRepository('github')">
+              Analyze Repository
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="answers.repoType === 'private'" class="mt-3">
+          <input nbInput
+                 fullWidth
+                 placeholder="GitLab Repository URL"
+                 [(ngModel)]="answers.gitlabURL">
+          <input nbInput
+                 fullWidth
+                 placeholder="GitLab Access Token *"
+                 [(ngModel)]="answers.gitlabToken"
+                 type="password"
+                 class="mt-2">
+          <div class="mt-2">
+            <button nbButton status="primary" (click)="cloneGitlabRepo()" class="me-2">
+              Clone Repository
+            </button>
+            <button nbButton status="info" (click)="analyzeRepository('gitlab')">
+              Analyze Repository
+            </button>
+          </div>
+        </div>
+
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['repoType']">
+          <nb-alert [status]="currentQuestionRisk['repoType'].status">
+            {{ currentQuestionRisk['repoType'].message }}
+            <ng-container *ngIf="currentQuestionRisk['repoType'].consequence">
+              <br><strong>Consequence:</strong> {{ currentQuestionRisk['repoType'].consequence }}
+            </ng-container>
+            <ng-container *ngIf="currentQuestionRisk['repoType'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['repoType'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-md-4">
+        <label class="label">3. What is the main objective of your project?</label>
+        <textarea nbInput
+                  fullWidth
+                  placeholder="Describe project objective"
+                  [(ngModel)]="answers.projectObjective"
+                  rows="3">
+          </textarea>
+      </div>
+
+      <div class="col-md-4">
+        <label class="label">4. Who are the stakeholders involved? *</label>
+        <textarea nbInput
+                  fullWidth
+                  placeholder="List key stakeholders"
+                  [(ngModel)]="answers.stakeholders"
+                  rows="3">
+          </textarea>
+      </div>
+
+      <div class="col-md-4">
+        <label class="label">5. Provide your email address for report delivery *</label>
+        <input nbInput
+               fullWidth
+               type="email"
+               placeholder="your.email@company.com"
+               [(ngModel)]="answers.email">
+      </div>
+    </div>
+  </nb-card-body>
+</nb-card>
+
+<nb-card class="mb-4">
+  <nb-card-header>
+    <h4>🛡️ Exploitability Assessment </h4>
+    <p class="text-muted">These questions assess how easily an attacker could exploit vulnerabilities</p>
+  </nb-card-header>
+  <nb-card-body>
+    <div class="row">
+      <div class="col-md-6">
+        <label class="label">6. Do you use Multi-Factor Authentication (MFA)? *</label>
+        <nb-radio-group [(ngModel)]="answers.mfa"
+                        (ngModelChange)="onAnswerChange('mfa', $event)">
+          <nb-radio value="yes">Yes - MFA is enabled</nb-radio>
+          <nb-radio value="no">No - Password only</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['mfa']">
+          <nb-alert [status]="currentQuestionRisk['mfa'].status">
+            {{ currentQuestionRisk['mfa'].message }}
+            <ng-container *ngIf="currentQuestionRisk['mfa'].consequence">
+              <br><strong>Impact:</strong> {{ currentQuestionRisk['mfa'].consequence }}
+            </ng-container>
+            <ng-container *ngIf="currentQuestionRisk['mfa'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['mfa'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="label">7. Are your Git repositories protected with branch rules? *</label>
+        <nb-radio-group [(ngModel)]="answers.gitProtection"
+                        (ngModelChange)="onAnswerChange('gitProtection', $event)">
+          <nb-radio value="yes">Yes - Branch protection enabled</nb-radio>
+          <nb-radio value="no">No - Direct commits allowed</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['gitProtection']">
+          <nb-alert [status]="currentQuestionRisk['gitProtection'].status">
+            {{ currentQuestionRisk['gitProtection'].message }}
+            <ng-container *ngIf="currentQuestionRisk['gitProtection'].consequence">
+              <br><strong>Impact:</strong> {{ currentQuestionRisk['gitProtection'].consequence }}
+            </ng-container>
+            <ng-container *ngIf="currentQuestionRisk['gitProtection'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['gitProtection'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <label class="label">8. Do you use secrets management tools? *</label>
+        <nb-radio-group [(ngModel)]="answers.secretsManagement"
+                        (ngModelChange)="onAnswerChange('secretsManagement', $event)">
+          <nb-radio value="yes">Yes - Vault/AWS Secrets Manager/etc.</nb-radio>
+          <nb-radio value="no">No - Hardcoded or basic storage</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['secretsManagement']">
+          <nb-alert [status]="currentQuestionRisk['secretsManagement'].status">
+            {{ currentQuestionRisk['secretsManagement'].message }}
+            <ng-container *ngIf="currentQuestionRisk['secretsManagement'].consequence">
+              <br><strong>Impact:</strong> {{ currentQuestionRisk['secretsManagement'].consequence }}
+            </ng-container>
+            <ng-container *ngIf="currentQuestionRisk['secretsManagement'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['secretsManagement'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="label">9. What privileges are required to access critical features?</label>
+        <nb-radio-group [(ngModel)]="answers.privilegesRequired"
+                        (ngModelChange)="onAnswerChange('privilegesRequired', $event)">
+          <nb-radio value="none">None - Anonymous access</nb-radio>
+          <nb-radio value="low">Low - Basic user account</nb-radio>
+          <nb-radio value="high">High - Admin/privileged account</nb-radio>
+        </nb-radio-group>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <label class="label">10. Does your system require user interaction for critical actions?</label>
+        <nb-radio-group [(ngModel)]="answers.userInteraction"
+                        (ngModelChange)="onAnswerChange('userInteraction', $event)">
+          <nb-radio value="required">Yes - User interaction required</nb-radio>
+          <nb-radio value="none">No - Automatic execution</nb-radio>
+        </nb-radio-group>
+        </div>
+
+      <div class="col-md-6">
+        <label class="label">11. Do you use exploit mitigation techniques?</label>
+        <nb-radio-group [(ngModel)]="answers.exploitMitigation"
+                        (ngModelChange)="onAnswerChange('exploitMitigation', $event)">
+          <nb-radio value="yes">Yes - ASLR, DEP, CSP implemented</nb-radio>
+          <nb-radio value="no">No - Basic security only</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['exploitMitigation']">
+          <nb-alert [status]="currentQuestionRisk['exploitMitigation'].status">
+            {{ currentQuestionRisk['exploitMitigation'].message }}
+            <ng-container *ngIf="currentQuestionRisk['exploitMitigation'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['exploitMitigation'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+    </div>
+  </nb-card-body>
+</nb-card>
+
+<nb-card class="mb-4">
+  <nb-card-header>
+    <h4>💣 Impact Assessment </h4>
+    <p class="text-muted">These questions assess the potential damage from successful attacks</p>
+  </nb-card-header>
+  <nb-card-body>
+    <div class="row">
+      <div class="col-md-4">
+        <label class="label">12. Impact on Data Confidentiality if compromised?</label>
+        <nb-radio-group [(ngModel)]="answers.confidentialityImpact"
+                        (ngModelChange)="onAnswerChange('confidentialityImpact', $event)">
+          <nb-radio value="none">None - Public data only</nb-radio>
+          <nb-radio value="low">Low - Limited sensitive data</nb-radio>
+          <nb-radio value="high">High - Critical confidential data</nb-radio>
+        </nb-radio-group>
+        </div>
+
+      <div class="col-md-4">
+        <label class="label">13. Impact on Data Integrity if compromised?</label>
+        <nb-radio-group [(ngModel)]="answers.integrityImpact"
+                        (ngModelChange)="onAnswerChange('integrityImpact', $event)">
+          <nb-radio value="none">None - Read-only access</nb-radio>
+          <nb-radio value="low">Low - Limited modification possible</nb-radio>
+          <nb-radio value="high">High - Critical data can be altered</nb-radio>
+        </nb-radio-group>
+        </div>
+
+      <div class="col-md-4">
+        <label class="label">14. Impact on System Availability if compromised?</label>
+        <nb-radio-group [(ngModel)]="answers.availabilityImpact"
+                        (ngModelChange)="onAnswerChange('availabilityImpact', $event)">
+          <nb-radio value="none">None - No service disruption</nb-radio>
+          <nb-radio value="low">Low - Minor performance impact</nb-radio>
+          <nb-radio value="high">High - Complete service outage</nb-radio>
+        </nb-radio-group>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <label class="label">15. What security measures have you implemented? *</label>
+        <div class="security-measures">
+          <nb-checkbox [(ngModel)]="answers.securityMeasures.accessControl"
+                       (ngModelChange)="onSecurityMeasureChange('accessControl', $event); onAnswerChange('securityMeasures', answers.securityMeasures)">
+            Access Control & Authentication
+          </nb-checkbox>
+          <nb-checkbox [(ngModel)]="answers.securityMeasures.encryption"
+                       (ngModelChange)="onSecurityMeasureChange('encryption', $event); onAnswerChange('securityMeasures', answers.securityMeasures)">
+            Data Encryption (at rest & in transit)
+          </nb-checkbox>
+          <nb-checkbox [(ngModel)]="answers.securityMeasures.audits"
+                       (ngModelChange)="onSecurityMeasureChange('audits', $event); onAnswerChange('securityMeasures', answers.securityMeasures)">
+            Regular Security Audits
+          </nb-checkbox>
+          <nb-checkbox [(ngModel)]="answers.securityMeasures.networkSecurity"
+                       (ngModelChange)="onSecurityMeasureChange('networkSecurity', $event); onAnswerChange('securityMeasures', answers.securityMeasures)">
+            Network Security (Firewall, IDS/IPS)
+          </nb-checkbox>
+          <nb-checkbox [(ngModel)]="answers.securityMeasures.incidentResponse"
+                       (ngModelChange)="onSecurityMeasureChange('incidentResponse', $event); onAnswerChange('securityMeasures', answers.securityMeasures)">
+            Incident Response Plan
+          </nb-checkbox>
+        </div>
+        <div class="implemented-count mt-2">
+          <nb-badge [status]="implementedSecurityMeasuresStatus" [text]="'Implemented: ' + implementedSecurityMeasuresCount + '/5'">
+          </nb-badge>
+        </div>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['securityMeasures']">
+          <nb-alert [status]="currentQuestionRisk['securityMeasures'].status">
+            {{ currentQuestionRisk['securityMeasures'].message }}
+          </nb-alert>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="label">16. Do you have security monitoring tools in place? *</label>
+        <nb-radio-group [(ngModel)]="answers.monitoringTools"
+                        (ngModelChange)="onAnswerChange('monitoringTools', $event)">
+          <nb-radio value="yes">Yes - SIEM, logging, alerting</nb-radio>
+          <nb-radio value="no">No - Limited or no monitoring</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['monitoringTools']">
+          <nb-alert [status]="currentQuestionRisk['monitoringTools'].status">
+            {{ currentQuestionRisk['monitoringTools'].message }}
+            <ng-container *ngIf="currentQuestionRisk['monitoringTools'].consequence">
+              <br><strong>Impact:</strong> {{ currentQuestionRisk['monitoringTools'].consequence }}
+            </ng-container>
+            <ng-container *ngIf="currentQuestionRisk['monitoringTools'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['monitoringTools'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <label class="label">17. Do you have a contingency/disaster recovery plan? *</label>
+        <nb-radio-group [(ngModel)]="answers.contingencyPlan"
+                        (ngModelChange)="onAnswerChange('contingencyPlan', $event)">
+          <nb-radio value="yes">Yes - Documented and tested</nb-radio>
+          <nb-radio value="no">No - No formal plan</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['contingencyPlan']">
+          <nb-alert [status]="currentQuestionRisk['contingencyPlan'].status">
+            {{ currentQuestionRisk['contingencyPlan'].message }}
+            <ng-container *ngIf="currentQuestionRisk['contingencyPlan'].consequence">
+              <br><strong>Impact:</strong> {{ currentQuestionRisk['contingencyPlan'].consequence }}
+            </ng-container>
+            <ng-container *ngIf="currentQuestionRisk['contingencyPlan'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['contingencyPlan'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="label">18. Do you use network segmentation?</label>
+        <nb-radio-group [(ngModel)]="answers.networkSegmentation"
+                        (ngModelChange)="onAnswerChange('networkSegmentation', $event)">
+          <nb-radio value="yes">Yes - Networks are segmented</nb-radio>
+          <nb-radio value="no">No - Flat network architecture</nb-radio>
+        </nb-radio-group>
+        </div>
+    </div>
+  </nb-card-body>
+</nb-card>
+
+<nb-card class="mb-4">
+  <nb-card-header>
+    <h4>🕒 Temporal Assessment </h4>
+    <p class="text-muted">These questions assess the current state of vulnerability exploitation and remediation</p>
+  </nb-card-header>
+  <nb-card-body>
+    <div class="row">
+      <div class="col-md-6">
+        <label class="label">19. Do you use Static Application Security Testing (SAST)? *</label>
+        <nb-radio-group [(ngModel)]="answers.staticAnalysis"
+                        (ngModelChange)="onAnswerChange('staticAnalysis', $event)">
+          <nb-radio value="yes">Yes - SonarQube, Checkmarx, etc.</nb-radio>
+          <nb-radio value="no">No - No static analysis</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['staticAnalysis']">
+          <nb-alert [status]="currentQuestionRisk['staticAnalysis'].status">
+            {{ currentQuestionRisk['staticAnalysis'].message }}
+            <ng-container *ngIf="currentQuestionRisk['staticAnalysis'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['staticAnalysis'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="label">20. Do you use Dynamic Application Security Testing (DAST)? *</label>
+        <nb-radio-group [(ngModel)]="answers.dynamicAnalysis"
+                        (ngModelChange)="onAnswerChange('dynamicAnalysis', $event)">
+          <nb-radio value="yes">Yes - OWASP ZAP, Burp Suite, etc.</nb-radio>
+          <nb-radio value="no">No - No dynamic analysis</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['dynamicAnalysis']">
+          <nb-alert [status]="currentQuestionRisk['dynamicAnalysis'].status">
+            {{ currentQuestionRisk['dynamicAnalysis'].message }}
+            <ng-container *ngIf="currentQuestionRisk['dynamicAnalysis'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['dynamicAnalysis'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <label class="label">21. Do you use Software Composition Analysis (SCA) tools? *</label>
+        <nb-radio-group [(ngModel)]="answers.scaTools"
+                        (ngModelChange)="onAnswerChange('scaTools', $event)">
+          <nb-radio value="yes">Yes - Snyk, OWASP Dependency-Check, etc.</nb-radio>
+          <nb-radio value="no">No - No dependency scanning</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['scaTools']">
+          <nb-alert [status]="currentQuestionRisk['scaTools'].status">
+            {{ currentQuestionRisk['scaTools'].message }}
+            <ng-container *ngIf="currentQuestionRisk['scaTools'].consequence">
+              <br><strong>Impact:</strong> {{ currentQuestionRisk['scaTools'].consequence }}
+            </ng-container>
+            <ng-container *ngIf="currentQuestionRisk['scaTools'].recommendation">
+              <br><strong>Recommendation:</strong> {{ currentQuestionRisk['scaTools'].recommendation }}
+            </ng-container>
+          </nb-alert>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="label">22. Do you regularly perform vulnerability scans? *</label>
+        <nb-radio-group [(ngModel)]="answers.vulnerabilityScans"
+                        (ngModelChange)="onAnswerChange('vulnerabilityScans', $event)">
+          <nb-radio value="yes">Yes - Regular scanning schedule</nb-radio>
+          <nb-radio value="no">No - Ad-hoc or never</nb-radio>
+        </nb-radio-group>
+        <div class="risk-indicator" *ngIf="currentQuestionRisk['vulnerabilityScans']">
+          <nb-alert [status]="currentQuestionRisk['vulnerabilityScans'].status">
+            {{ currentQuestionRisk['vulnerabilityScans'].message }}
+          </nb-alert>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <label class="label">23. How often do you scan for vulnerabilities?</label>
+        <nb-radio-group [(ngModel)]="answers.scanFrequency"
+                        (ngModelChange)="onAnswerChange('scanFrequency', $event)">
+          <nb-radio value="weekly">Weekly</nb-radio>
+          <nb-radio value="monthly">Monthly</nb-radio>
+          <nb-radio value="quarterly">Quarterly</nb-radio>
+          <nb-radio value="never">Never/Ad-hoc</nb-radio>
+        </nb-radio-group>
+        </div>
+
+      <div class="col-md-6">
+        <label class="label">24. Have you identified any vulnerabilities? *</label>
+        <nb-radio-group [(ngModel)]="answers.identifiedVulnerabilities"
+                        (ngModelChange)="onAnswerChange('identifiedVulnerabilities', $event)">
+          <nb-radio value="yes">Yes - Vulnerabilities found</nb-radio>
+          <nb-radio value="no">No - Clean scan results</nb-radio>
+        </nb-radio-group>
+        </div>
+    </div>
+
+    <div class="row mt-3" *ngIf="answers.identifiedVulnerabilities === 'yes'">
+      <div class="col-md-6">
+        <label class="label">25. What is the highest severity level found?</label>
+        <nb-radio-group [(ngModel)]="answers.vulnerabilitySeverity"
+                        (ngModelChange)="onAnswerChange('vulnerabilitySeverity', $event)">
+          <nb-radio value="critical">Critical</nb-radio>
+          <nb-radio value="high">High</nb-radio>
+          <nb-radio value="medium">Medium</nb-radio>
+          <nb-radio value="low">Low</nb-radio>
+        </nb-radio-group>
+        </div>
+
+      <div class="col-md-6">
+        <label class="label">26. How quickly do you patch/remediate vulnerabilities?</label>
+        <nb-radio-group [(ngModel)]="answers.patchingFrequency"
+                        (ngModelChange)="onAnswerChange('patchingFrequency', $event)">
+          <nb-radio value="immediate">Immediate (within 24h)</nb-radio>
+          <nb-radio value="weekly">Weekly</nb-radio>
+          <nb-radio value="monthly">Monthly</nb-radio>
+          <nb-radio value="quarterly">Quarterly</nb-radio>
+          <nb-radio value="never">Rarely/Never</nb-radio>
+        </nb-radio-group>
+        </div>
+    </div>
+  </nb-card-body>
+</nb-card>
+
+<nb-card class="mb-4">
+  <nb-card-header>
+    <h4>🌍 Environmental Assessment </h4>
+    <p class="text-muted">These questions assess the specific environment and context of your project</p>
+  </nb-card-header>
+  <nb-card-body>
+    <div class="row">
+      <div class="col-md-4">
+        <label class="label">27. What is your project's criticality level?</label>
+        <nb-radio-group [(ngModel)]="answers.projectCriticality"
+                        (ngModelChange)="onAnswerChange('projectCriticality', $event)">
+          <nb-radio value="low">Low - Internal tool</nb-radio>
+          <nb-radio value="medium">Medium - Business application</nb-radio>
+          <nb-radio value="high">High - Customer-facing</nb-radio>
+          <nb-radio value="critical">Critical - Mission critical</nb-radio>
+        </nb-radio-group>
+        </div>
+
+      <div class="col-md-4">
+        <label class="label">28. What is your hosting environment?</label>
+        <nb-radio-group [(ngModel)]="answers.hostingEnvironment"
+                        (ngModelChange)="onAnswerChange('hostingEnvironment', $event)">
+          <nb-radio value="cloud">Cloud (AWS, Azure, GCP)</nb-radio>
+          <nb-radio value="on-premise">On-Premise</nb-radio>
+          <nb-radio value="hybrid">Hybrid</nb-radio>
+        </nb-radio-group>
+        </div>
+
+      <div class="col-md-4">
+        <label class="label">29. What is your team's security experience level?</label>
+        <nb-radio-group [(ngModel)]="answers.teamExperience"
+                        (ngModelChange)="onAnswerChange('teamExperience', $event)">
+          <nb-radio value="junior">Junior - Limited experience</nb-radio>
+          <nb-radio value="intermediate">Intermediate - Some experience</nb-radio>
+          <nb-radio value="senior">Senior - Experienced team</nb-radio>
+          <nb-radio value="expert">Expert - Security specialists</nb-radio>
+        </nb-radio-group>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <label class="label">30. What compliance standards do you follow?</label>
+        <textarea nbInput
+                  fullWidth
+                  placeholder="e.g., SOC 2, ISO 27001, PCI DSS, GDPR"
+                  [(ngModel)]="answers.complianceStandards"
+                  rows="2">
           </textarea>
         </div>
-        
-        <div class="col-md-4">
-          <label class="label">4. Who are the stakeholders involved? *</label>
-          <textarea nbInput 
-                    fullWidth 
-                    placeholder="List key stakeholders"
-                    [(ngModel)]="answers.stakeholders"
-                    rows="3">
-          </textarea>
-        </div>
-        
-        <div class="col-md-4">
-          <label class="label">5. Provide your email address for report delivery *</label>
-          <input nbInput 
-                 fullWidth 
-                 type="email"
-                 placeholder="your.email@company.com"
-                 [(ngModel)]="answers.email">
-        </div>
-      </div>
-    </nb-card-body>
-  </nb-card>
 
-  <!-- CVSS Exploitability Metrics Section -->
-  <nb-card class="mb-4">
-    <nb-card-header>
-      <h4>🛡️ Exploitability Assessment </h4>
-      <p class="text-muted">These questions assess how easily an attacker could exploit vulnerabilities</p>
-    </nb-card-header>
-    <nb-card-body>
-      <div class="row">
-        <div class="col-md-6">
-          <label class="label">6. Do you use Multi-Factor Authentication (MFA)? *</label>
-          <nb-radio-group [(ngModel)]="answers.mfa" 
-                          (ngModelChange)="onAnswerChange('mfa', $event)">
-            <nb-radio value="yes">Yes - MFA is enabled</nb-radio>
-            <nb-radio value="no">No - Password only</nb-radio>
-          </nb-radio-group>
-          <nb-alert *ngIf="answers.mfa === 'no'" status="danger" class="mt-2">
-            🚨 <strong>High Risk:</strong> No MFA increases Privileges Required vulnerability
-            <br><strong>Impact:</strong> Account compromise risk
-            <br><strong>Recommendation:</strong> Enable MFA for all user accounts
-          </nb-alert>
+      <div class="col-md-6">
+        <label class="label">31. What is your data classification?</label>
+        <nb-radio-group [(ngModel)]="answers.dataClassification"
+                        (ngModelChange)="onAnswerChange('dataClassification', $event)">
+          <nb-radio value="public">Public</nb-radio>
+          <nb-radio value="internal">Internal</nb-radio>
+          <nb-radio value="confidential">Confidential</nb-radio>
+          <nb-radio value="restricted">Restricted/Top Secret</nb-radio>
+        </nb-radio-group>
         </div>
-        
-        <div class="col-md-6">
-          <label class="label">7. Are your Git repositories protected with branch rules? *</label>
-          <nb-radio-group [(ngModel)]="answers.gitProtection" 
-                          (ngModelChange)="onAnswerChange('gitProtection', $event)">
-            <nb-radio value="yes">Yes - Branch protection enabled</nb-radio>
-            <nb-radio value="no">No - Direct commits allowed</nb-radio>
-          </nb-radio-group>
-          <nb-alert *ngIf="answers.gitProtection === 'no'" status="danger" class="mt-2">
-            🚨 <strong>High Risk:</strong> No branch protection reduces Attack Complexity
-            <br><strong>Impact:</strong> Direct pushes to production possible
-            <br><strong>Recommendation:</strong> Enable branch protection and mandatory code reviews
-          </nb-alert>
-        </div>
-      </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-6">
-          <label class="label">8. Do you use secrets management tools? *</label>
-          <nb-radio-group [(ngModel)]="answers.secretsManagement" 
-                          (ngModelChange)="onAnswerChange('secretsManagement', $event)">
-            <nb-radio value="yes">Yes - Vault/AWS Secrets Manager/etc.</nb-radio>
-            <nb-radio value="no">No - Hardcoded or basic storage</nb-radio>
-          </nb-radio-group>
-          <nb-alert *ngIf="answers.secretsManagement === 'no'" status="danger" class="mt-2">
-            🚨 <strong>Critical Risk:</strong> Poor secrets management affects Confidentiality Impact
-            <br><strong>Impact:</strong> API keys, passwords exposed
-            <br><strong>Recommendation:</strong> Implement proper secrets management
-          </nb-alert>
-        </div>
-        
-        <div class="col-md-6">
-          <label class="label">9. What privileges are required to access critical features?</label>
-          <nb-radio-group [(ngModel)]="answers.privilegesRequired" 
-                          (ngModelChange)="onAnswerChange('privilegesRequired', $event)">
-            <nb-radio value="none">None - Anonymous access</nb-radio>
-            <nb-radio value="low">Low - Basic user account</nb-radio>
-            <nb-radio value="high">High - Admin/privileged account</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-6">
-          <label class="label">10. Does your system require user interaction for critical actions?</label>
-          <nb-radio-group [(ngModel)]="answers.userInteraction" 
-                          (ngModelChange)="onAnswerChange('userInteraction', $event)">
-            <nb-radio value="required">Yes - User interaction required</nb-radio>
-            <nb-radio value="none">No - Automatic execution</nb-radio>
-          </nb-radio-group>
-        </div>
-        
-        <div class="col-md-6">
-          <label class="label">11. Do you use exploit mitigation techniques?</label>
-          <nb-radio-group [(ngModel)]="answers.exploitMitigation" 
-                          (ngModelChange)="onAnswerChange('exploitMitigation', $event)">
-            <nb-radio value="yes">Yes - ASLR, DEP, CSP implemented</nb-radio>
-            <nb-radio value="no">No - Basic security only</nb-radio>
-          </nb-radio-group>
-          <nb-alert *ngIf="answers.exploitMitigation === 'no'" status="warning" class="mt-2">
-            ⚠️ <strong>Medium Risk:</strong> Missing exploit mitigation affects Attack Complexity
-            <br><strong>Recommendation:</strong> Implement ASLR, DEP, CSP, and other mitigations
-          </nb-alert>
-        </div>
-      </div>
-    </nb-card-body>
-  </nb-card>
+    </div>
 
-  <!-- CVSS Impact Metrics Section -->
-  <nb-card class="mb-4">
-    <nb-card-header>
-      <h4>💣 Impact Assessment </h4>
-      <p class="text-muted">These questions assess the potential damage from successful attacks</p>
-    </nb-card-header>
-    <nb-card-body>
-      <div class="row">
-        <div class="col-md-4">
-          <label class="label">12. Impact on Data Confidentiality if compromised?</label>
-          <nb-radio-group [(ngModel)]="answers.confidentialityImpact" 
-                          (ngModelChange)="onAnswerChange('confidentialityImpact', $event)">
-            <nb-radio value="none">None - Public data only</nb-radio>
-            <nb-radio value="low">Low - Limited sensitive data</nb-radio>
-            <nb-radio value="high">High - Critical confidential data</nb-radio>
-          </nb-radio-group>
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <label class="label">32. Do you provide regular security training? *</label>
+        <nb-radio-group [(ngModel)]="answers.securityTraining"
+                        (ngModelChange)="onAnswerChange('securityTraining', $event)">
+          <nb-radio value="yes">Yes - Regular training program</nb-radio>
+          <nb-radio value="no">No - Limited or no training</nb-radio>
+        </nb-radio-group>
         </div>
-        
-        <div class="col-md-4">
-          <label class="label">13. Impact on Data Integrity if compromised?</label>
-          <nb-radio-group [(ngModel)]="answers.integrityImpact" 
-                          (ngModelChange)="onAnswerChange('integrityImpact', $event)">
-            <nb-radio value="none">None - Read-only access</nb-radio>
-            <nb-radio value="low">Low - Limited modification possible</nb-radio>
-            <nb-radio value="high">High - Critical data can be altered</nb-radio>
-          </nb-radio-group>
-        </div>
-        
-        <div class="col-md-4">
-          <label class="label">14. Impact on System Availability if compromised?</label>
-          <nb-radio-group [(ngModel)]="answers.availabilityImpact" 
-                          (ngModelChange)="onAnswerChange('availabilityImpact', $event)">
-            <nb-radio value="none">None - No service disruption</nb-radio>
-            <nb-radio value="low">Low - Minor performance impact</nb-radio>
-            <nb-radio value="high">High - Complete service outage</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-6">
-          <label class="label">15. What security measures have you implemented? *</label>
-          <div class="security-measures">
-            <nb-checkbox [(ngModel)]="answers.securityMeasures.accessControl" 
-                         (ngModelChange)="onSecurityMeasureChange('accessControl', $event)">
-              Access Control & Authentication
-            </nb-checkbox>
-            <nb-checkbox [(ngModel)]="answers.securityMeasures.encryption" 
-                         (ngModelChange)="onSecurityMeasureChange('encryption', $event)">
-              Data Encryption (at rest & in transit)
-            </nb-checkbox>
-            <nb-checkbox [(ngModel)]="answers.securityMeasures.audits" 
-                         (ngModelChange)="onSecurityMeasureChange('audits', $event)">
-              Regular Security Audits
-            </nb-checkbox>
-            <nb-checkbox [(ngModel)]="answers.securityMeasures.networkSecurity" 
-                         (ngModelChange)="onSecurityMeasureChange('networkSecurity', $event)">
-              Network Security (Firewall, IDS/IPS)
-            </nb-checkbox>
-            <nb-checkbox [(ngModel)]="answers.securityMeasures.incidentResponse" 
-                         (ngModelChange)="onSecurityMeasureChange('incidentResponse', $event)">
-              Incident Response Plan
-            </nb-checkbox>
-          </div>
-          <div class="implemented-count mt-2">
-            <nb-badge [status]="implementedSecurityMeasuresStatus"[text]="'Implemented: ' + implementedSecurityMeasuresCount + '/5'">
-            </nb-badge>
-          </div>
-        </div>
-        
-        <div class="col-md-6">
-          <label class="label">16. Do you have security monitoring tools in place? *</label>
-          <nb-radio-group [(ngModel)]="answers.monitoringTools" 
-                          (ngModelChange)="onAnswerChange('monitoringTools', $event)">
-            <nb-radio value="yes">Yes - SIEM, logging, alerting</nb-radio>
-            <nb-radio value="no">No - Limited or no monitoring</nb-radio>
-          </nb-radio-group>
-          <nb-alert *ngIf="answers.monitoringTools === 'no'" status="warning" class="mt-2">
-            ⚠️ <strong>Medium Risk:</strong> No monitoring affects incident detection
-            <br><strong>Impact:</strong> Delayed breach detection
-            <br><strong>Recommendation:</strong> Implement security monitoring and SIEM
-          </nb-alert>
-        </div>
-      </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-6">
-          <label class="label">17. Do you have a contingency/disaster recovery plan? *</label>
-          <nb-radio-group [(ngModel)]="answers.contingencyPlan" 
-                          (ngModelChange)="onAnswerChange('contingencyPlan', $event)">
-            <nb-radio value="yes">Yes - Documented and tested</nb-radio>
-            <nb-radio value="no">No - No formal plan</nb-radio>
-          </nb-radio-group>
-          <nb-alert *ngIf="answers.contingencyPlan === 'no'" status="danger" class="mt-2">
-            🚨 <strong>High Risk:</strong> No contingency plan affects Availability Impact
-            <br><strong>Impact:</strong> Extended downtime during incidents
-            <br><strong>Recommendation:</strong> Develop and test disaster recovery procedures
-          </nb-alert>
-        </div>
-        
-        <div class="col-md-6">
-          <label class="label">18. Do you use network segmentation?</label>
-          <nb-radio-group [(ngModel)]="answers.networkSegmentation" 
-                          (ngModelChange)="onAnswerChange('networkSegmentation', $event)">
-            <nb-radio value="yes">Yes - Networks are segmented</nb-radio>
-            <nb-radio value="no">No - Flat network architecture</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-    </nb-card-body>
-  </nb-card>
 
-  <!-- CVSS Temporal Metrics Section -->
-  <nb-card class="mb-4">
-    <nb-card-header>
-      <h4>🕒 Temporal Assessment </h4>
-      <p class="text-muted">These questions assess the current state of vulnerability exploitation and remediation</p>
-    </nb-card-header>
-    <nb-card-body>
-      <div class="row">
-        <div class="col-md-6">
-          <label class="label">19. Do you use Static Application Security Testing (SAST)? *</label>
-          <nb-radio-group [(ngModel)]="answers.staticAnalysis" 
-                          (ngModelChange)="onAnswerChange('staticAnalysis', $event)">
-            <nb-radio value="yes">Yes - SonarQube, Checkmarx, etc.</nb-radio>
-            <nb-radio value="no">No - No static analysis</nb-radio>
-          </nb-radio-group>
-          <nb-alert *ngIf="answers.staticAnalysis === 'no'" status="warning" class="mt-2">
-            ⚠️ <strong>Medium Risk:</strong> No SAST affects Exploit Code Maturity assessment
-            <br><strong>Recommendation:</strong> Implement static code analysis tools
-          </nb-alert>
+      <div class="col-md-6" *ngIf="answers.securityTraining === 'yes'">
+        <label class="label">33. How often is security training conducted?</label>
+        <nb-radio-group [(ngModel)]="answers.trainingFrequency"
+                        (ngModelChange)="onAnswerChange('trainingFrequency', $event)">
+          <nb-radio value="monthly">Monthly</nb-radio>
+          <nb-radio value="quarterly">Quarterly</nb-radio>
+          <nb-radio value="annually">Annually</nb-radio>
+          <nb-radio value="never">Never</nb-radio>
+        </nb-radio-group>
         </div>
-        
-        <div class="col-md-6">
-          <label class="label">20. Do you use Dynamic Application Security Testing (DAST)? *</label>
-          <nb-radio-group [(ngModel)]="answers.dynamicAnalysis" 
-                          (ngModelChange)="onAnswerChange('dynamicAnalysis', $event)">
-            <nb-radio value="yes">Yes - OWASP ZAP, Burp Suite, etc.</nb-radio>
-            <nb-radio value="no">No - No dynamic analysis</nb-radio>
-          </nb-radio-group>
-          <nb-alert *ngIf="answers.dynamicAnalysis === 'no'" status="warning" class="mt-2">
-            ⚠️ <strong>Medium Risk:</strong> No DAST affects runtime vulnerability detection
-            <br><strong>Recommendation:</strong> Implement dynamic security testing
-          </nb-alert>
-        </div>
-      </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-6">
-          <label class="label">21. Do you use Software Composition Analysis (SCA) tools? *</label>
-          <nb-radio-group [(ngModel)]="answers.scaTools" 
-                          (ngModelChange)="onAnswerChange('scaTools', $event)">
-            <nb-radio value="yes">Yes - Snyk, OWASP Dependency-Check, etc.</nb-radio>
-            <nb-radio value="no">No - No dependency scanning</nb-radio>
-          </nb-radio-group>
-          <nb-alert *ngIf="answers.scaTools === 'no'" status="warning" class="mt-2">
-            ⚠️ <strong>Medium Risk:</strong> No SCA affects Remediation Level for dependencies
-            <br><strong>Impact:</strong> Vulnerable third-party components undetected
-            <br><strong>Recommendation:</strong> Implement dependency vulnerability scanning
-          </nb-alert>
-        </div>
-        
-        <div class="col-md-6">
-          <label class="label">22. Do you regularly perform vulnerability scans? *</label>
-          <nb-radio-group [(ngModel)]="answers.vulnerabilityScans" 
-                          (ngModelChange)="onAnswerChange('vulnerabilityScans', $event)">
-            <nb-radio value="yes">Yes - Regular scanning schedule</nb-radio>
-            <nb-radio value="no">No - Ad-hoc or never</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-6">
-          <label class="label">23. How often do you scan for vulnerabilities?</label>
-          <nb-radio-group [(ngModel)]="answers.scanFrequency" 
-                          (ngModelChange)="onAnswerChange('scanFrequency', $event)">
-            <nb-radio value="weekly">Weekly</nb-radio>
-            <nb-radio value="monthly">Monthly</nb-radio>
-            <nb-radio value="quarterly">Quarterly</nb-radio>
-            <nb-radio value="never">Never/Ad-hoc</nb-radio>
-          </nb-radio-group>
-        </div>
-        
-        <div class="col-md-6">
-          <label class="label">24. Have you identified any vulnerabilities? *</label>
-          <nb-radio-group [(ngModel)]="answers.identifiedVulnerabilities" 
-                          (ngModelChange)="onAnswerChange('identifiedVulnerabilities', $event)">
-            <nb-radio value="yes">Yes - Vulnerabilities found</nb-radio>
-            <nb-radio value="no">No - Clean scan results</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-      
-      <div class="row mt-3" *ngIf="answers.identifiedVulnerabilities === 'yes'">
-        <div class="col-md-6">
-          <label class="label">25. What is the highest severity level found?</label>
-          <nb-radio-group [(ngModel)]="answers.vulnerabilitySeverity" 
-                          (ngModelChange)="onAnswerChange('vulnerabilitySeverity', $event)">
-            <nb-radio value="critical">Critical</nb-radio>
-            <nb-radio value="high">High</nb-radio>
-            <nb-radio value="medium">Medium</nb-radio>
-            <nb-radio value="low">Low</nb-radio>
-          </nb-radio-group>
-        </div>
-        
-        <div class="col-md-6">
-          <label class="label">26. How quickly do you patch/remediate vulnerabilities?</label>
-          <nb-radio-group [(ngModel)]="answers.patchingFrequency" 
-                          (ngModelChange)="onAnswerChange('patchingFrequency', $event)">
-            <nb-radio value="immediate">Immediate (within 24h)</nb-radio>
-            <nb-radio value="weekly">Weekly</nb-radio>
-            <nb-radio value="monthly">Monthly</nb-radio>
-            <nb-radio value="quarterly">Quarterly</nb-radio>
-            <nb-radio value="never">Rarely/Never</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-    </nb-card-body>
-  </nb-card>
+    </div>
 
-  <!-- CVSS Environmental Metrics Section -->
-  <nb-card class="mb-4">
-    <nb-card-header>
-      <h4>🌍 Environmental Assessment </h4>
-      <p class="text-muted">These questions assess the specific environment and context of your project</p>
-    </nb-card-header>
-    <nb-card-body>
-      <div class="row">
-        <div class="col-md-4">
-          <label class="label">27. What is your project's criticality level?</label>
-          <nb-radio-group [(ngModel)]="answers.projectCriticality" 
-                          (ngModelChange)="onAnswerChange('projectCriticality', $event)">
-            <nb-radio value="low">Low - Internal tool</nb-radio>
-            <nb-radio value="medium">Medium - Business application</nb-radio>
-            <nb-radio value="high">High - Customer-facing</nb-radio>
-            <nb-radio value="critical">Critical - Mission critical</nb-radio>
-          </nb-radio-group>
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <label class="label">34. What access control model do you use?</label>
+        <nb-radio-group [(ngModel)]="answers.accessControlModel"
+                        (ngModelChange)="onAnswerChange('accessControlModel', $event)">
+          <nb-radio value="none">None - Open access</nb-radio>
+          <nb-radio value="basic">Basic - Username/Password</nb-radio>
+          <nb-radio value="rbac">RBAC - Role-based access</nb-radio>
+          <nb-radio value="abac">ABAC - Attribute-based access</nb-radio>
+        </nb-radio-group>
         </div>
-        
-        <div class="col-md-4">
-          <label class="label">28. What is your hosting environment?</label>
-          <nb-radio-group [(ngModel)]="answers.hostingEnvironment" 
-                          (ngModelChange)="onAnswerChange('hostingEnvironment', $event)">
-            <nb-radio value="cloud">Cloud (AWS, Azure, GCP)</nb-radio>
-            <nb-radio value="on-premise">On-Premise</nb-radio>
-            <nb-radio value="hybrid">Hybrid</nb-radio>
-          </nb-radio-group>
-        </div>
-        
-        <div class="col-md-4">
-          <label class="label">29. What is your team's security experience level?</label>
-          <nb-radio-group [(ngModel)]="answers.teamExperience" 
-                          (ngModelChange)="onAnswerChange('teamExperience', $event)">
-            <nb-radio value="junior">Junior - Limited experience</nb-radio>
-            <nb-radio value="intermediate">Intermediate - Some experience</nb-radio>
-            <nb-radio value="senior">Senior - Experienced team</nb-radio>
-            <nb-radio value="expert">Expert - Security specialists</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-6">
-          <label class="label">30. What compliance standards do you follow?</label>
-          <textarea nbInput 
-                    fullWidth 
-                    placeholder="e.g., SOC 2, ISO 27001, PCI DSS, GDPR"
-                    [(ngModel)]="answers.complianceStandards"
-                    rows="2">
-          </textarea>
-        </div>
-        
-        <div class="col-md-6">
-          <label class="label">31. What is your data classification?</label>
-          <nb-radio-group [(ngModel)]="answers.dataClassification" 
-                          (ngModelChange)="onAnswerChange('dataClassification', $event)">
-            <nb-radio value="public">Public</nb-radio>
-            <nb-radio value="internal">Internal</nb-radio>
-            <nb-radio value="confidential">Confidential</nb-radio>
-            <nb-radio value="restricted">Restricted/Top Secret</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-6">
-          <label class="label">32. Do you provide regular security training? *</label>
-          <nb-radio-group [(ngModel)]="answers.securityTraining" 
-                          (ngModelChange)="onAnswerChange('securityTraining', $event)">
-            <nb-radio value="yes">Yes - Regular training program</nb-radio>
-            <nb-radio value="no">No - Limited or no training</nb-radio>
-          </nb-radio-group>
-        </div>
-        
-        <div class="col-md-6" *ngIf="answers.securityTraining === 'yes'">
-          <label class="label">33. How often is security training conducted?</label>
-          <nb-radio-group [(ngModel)]="answers.trainingFrequency" 
-                          (ngModelChange)="onAnswerChange('trainingFrequency', $event)">
-            <nb-radio value="monthly">Monthly</nb-radio>
-            <nb-radio value="quarterly">Quarterly</nb-radio>
-            <nb-radio value="annually">Annually</nb-radio>
-            <nb-radio value="never">Never</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-      
-      <div class="row mt-3">
-        <div class="col-md-6">
-          <label class="label">34. What access control model do you use?</label>
-          <nb-radio-group [(ngModel)]="answers.accessControlModel" 
-                          (ngModelChange)="onAnswerChange('accessControlModel', $event)">
-            <nb-radio value="none">None - Open access</nb-radio>
-            <nb-radio value="basic">Basic - Username/Password</nb-radio>
-            <nb-radio value="rbac">RBAC - Role-based access</nb-radio>
-            <nb-radio value="abac">ABAC - Attribute-based access</nb-radio>
-          </nb-radio-group>
-        </div>
-      </div>
-    </nb-card-body>
-  </nb-card>
+    </div>
+  </nb-card-body>
+</nb-card>
+
 
  <!-- Repository Analysis Results -->
   <nb-card *ngIf="repositoryAnalysis" class="mb-4">
@@ -867,23 +932,23 @@
             <tbody>
               <tr>
                 <td><strong>Attack Vector:</strong></td>
-                <td>{{ answers.attackVector ? (answers.attackVector | titlecase) : 'Not Set' }}</td>
+                <td>{{ answers.attackVector ? (answers.attackVector | titlecase) : 'Not Defined' }}</td>
               </tr>
               <tr>
                 <td><strong>Attack Complexity:</strong></td>
-                <td>{{ answers.attackComplexity ? (answers.attackComplexity | titlecase) : 'Not Set' }}</td>
+                <td>{{ answers.attackComplexity ? (answers.attackComplexity | titlecase) : 'Not Defined' }}</td>
               </tr>
               <tr>
                 <td><strong>Privileges Required:</strong></td>
-                <td>{{ answers.privilegesRequired ? (answers.privilegesRequired | titlecase) : 'Not Set' }}</td>
+                <td>{{ answers.privilegesRequired ? (answers.privilegesRequired | titlecase) : 'Not Defined' }}</td>
               </tr>
               <tr>
                 <td><strong>User Interaction:</strong></td>
-                <td>{{ answers.userInteraction? (answers.userInteraction| titlecase) : 'Not Set' }}</td>
+                <td>{{ answers.userInteraction? (answers.userInteraction| titlecase) : 'Not Defined' }}</td>
               </tr>
               <tr>
                 <td><strong>Scope:</strong></td>
-                <td>{{ answers.scope? (answers.scope | titlecase) : 'Not Set' }}</td>
+                <td>{{ answers.scope? (answers.scope | titlecase) : 'Not Defined' }}</td>
               </tr>
             </tbody>
           </table>

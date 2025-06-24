@@ -4,15 +4,18 @@ const projectSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    trim: true
+    unique: true
   },
-  description: String,
-  owner: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+  gitlabProjectId: { // This will store the numerical ID from GitLab
+    type: Number,
+    required: true,
+    unique: true
+  },
+  gitlabProjectUrl: {
+    type: String,
     required: true
   },
-  toolsUsed: [String], // e.g., ['SonarQube', 'Trivy']
+  
   createdAt: {
     type: Date,
     default: Date.now

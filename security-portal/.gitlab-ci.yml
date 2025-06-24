@@ -1,93 +1,329 @@
+# .gitlab-ci.yml
+
 stages:
-  - build
-  - scan
-  - push
-  - deploy
+  - sonarqube
+  - owasp
+  - trivy
+  - report 
 
 variables:
-  DOCKER_IMAGE: registry.gitlab.com/your-group/your-project
-  SONAR_PROJECT_KEY: your_project_key
-  SONAR_HOST_URL: http://your-sonarqube-url
-  SONAR_TOKEN: $SONAR_TOKEN
+  BACKEND_URL: "http://localhost:5000/api/git/scan-results"
+  TRIVY_IMAGE: "docker.io/aquasec/trivy:latest"
+  SONAR_HOST_URL: "http://192.168.56.101:9000" 
+  FRONTEND_URL: "https://security-portal" # Used for OWASP ZAP if you add it later, or other frontend-related scans
 
-# -------------------------
-# BUILD
-# -------------------------
-build:
-  stage: build
-  image: docker:latest
-  services:
-    - docker:dind
+# --- Template for posting scan results to the backend ---
+.post_scan_result_template: &post_scan_result_definition
+  image: curlimages/curl:latest
   script:
-    - docker build -t $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA .
-  only:
-    - main
+    - apk add --no-cache jq # Ensure jq is installed in the curl image
+    - echo "Posting payload: $PAYLOAD"
+    # The MONGO_PROJECT_ID is now automatically available as a pipeline variable
+    - curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL" || true 
 
-# -------------------------
-# SCAN (Trivy + SonarQube + ZAP)
-# -------------------------
-
-trivy_scan:
-  stage: scan
-  image: aquasec/trivy:latest
-  script:
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA
-  allow_failure: true
-
+# --- SONARQUBE STAGE ---
 sonarqube_scan:
-  stage: scan
+  stage: sonarqube
   image: sonarsource/sonar-scanner-cli:latest
+  variables:
+    SONAR_HOST_URL: "http://192.168.56.101:9000" 
+    SONAR_TOKEN: "$SONAR_TOKEN" 
+    # Dynamic Variables for SonarQube Project
+    SONAR_PROJECT_KEY: "$CI_PROJECT_PATH" # Uses GitLab project path as key
+    SONAR_PROJECT_NAME: "$CI_PROJECT_NAME" # Uses GitLab project name
+    SONAR_PROJECT_VERSION: "$CI_COMMIT_SHORT_SHA" # Uses short commit SHA for version
+    SONAR_SOURCES: "." # Assumes your code is at the root of the cloned repo
+    BACKEND_URL: "$BACKEND_URL" 
+    MONGO_PROJECT_ID: "$MONGO_PROJECT_ID" # Make sure this variable is passed by your orchestrator
   script:
+    - echo "🔍 Starting SonarQube analysis..."
+    - echo "SonarQube Host: $SONAR_HOST_URL"
+    - echo "SonarQube Project Key: $SONAR_PROJECT_KEY"
+    - echo "SonarQube Project Name: $SONAR_PROJECT_NAME"
+    - echo "SonarQube Project Version: $SONAR_PROJECT_VERSION"
     - sonar-scanner \
-        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-        -Dsonar.sources=. \
-        -Dsonar.host.url=$SONAR_HOST_URL \
-        -Dsonar.login=$SONAR_TOKEN
-  only:
-    - main
+        -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+        -Dsonar.projectName="$SONAR_PROJECT_NAME" \
+        -Dsonar.projectVersion="$SONAR_PROJECT_VERSION" \
+        -Dsonar.sources="$SONAR_SOURCES" \
+        -Dsonar.host.url="$SONAR_HOST_URL" \
+        -Dsonar.login="$SONAR_TOKEN"
+    - echo "✅ SonarQube scan completed."
+    - |
+      # SonarQube analysis results are primarily viewed on the SonarQube dashboard.
+      # We send a basic payload to the backend confirming scan completion and providing the URL.
+      SONAR_REPORT_URL="${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}" # Construct SonarQube dashboard URL
 
-zap_scan:
-  stage: scan
-  image: owasp/zap2docker-stable
+      PAYLOAD=$(cat <<EOF
+      {
+        "project": "$MONGO_PROJECT_ID", # MongoDB project ID passed from your orchestrator
+        "tool": "SonarQube",
+        "status": "completed", # Indicate that the scan completed
+        "reportUrl": "$SONAR_REPORT_URL",
+        "gitlabPipelineId": "$CI_PIPELINE_ID",
+        "gitlabJobId": "$CI_JOB_ID",
+        "message": "SonarQube analysis completed. View detailed results on the SonarQube dashboard."
+      }
+      EOF
+      )
+    - *post_scan_result_definition # Use the template to post the results
+  artifacts:
+    when: always
+    paths:
+      - .scannerwork/report-task.txt # This file contains analysis ID if you need to fetch quality gate status later.
+    expire_in: 1 week
+
+# --- OWASP DEPENDENCY CHECK STAGE ---
+owasp_dependency_check:
+  stage: owasp
+  image: owasp/dependency-check:latest
+  variables:
+    BACKEND_URL: "$BACKEND_URL" # Ensure backend URL is available
+    MONGO_PROJECT_ID: "$MONGO_PROJECT_ID" # Ensure Mongo Project ID is available
   script:
-    - zap-baseline.py -t http://your-running-app-url -g gen.conf -r zap-report.html
+    - apk add --no-cache jq # Ensure jq is installed
+    - /usr/share/dependency-check/bin/dependency-check.sh --project "${CI_PROJECT_NAME}" --scan . --format JSON --out "dependency-check-report.json"
+    - |
+      OWASP_REPORT_JSON=$(cat dependency-check-report.json)
+
+      OWASP_SEVERITY="None"
+      HIGH_COUNT=$(echo "$OWASP_REPORT_JSON" | jq '[.dependencies[] | select(.vulnerabilities != null) | .vulnerabilities[] | select(.severity | ascii_upcase == "HIGH" or ascii_upcase == "CRITICAL")] | length')
+      if [ "$HIGH_COUNT" -gt 0 ]; then
+        OWASP_SEVERITY="High"
+      else
+        MEDIUM_COUNT=$(echo "$OWASP_REPORT_JSON" | jq '[.dependencies[] | select(.vulnerabilities != null) | .vulnerabilities[] | select(.severity | ascii_upcase == "MEDIUM")] | length')
+        if [ "$MEDIUM_COUNT" -gt 0 ]; then
+          OWASP_SEVERITY="Medium"
+        fi
+      fi
+
+      # This JQ query attempts to map a subset of OWASP vulnerabilities to your schema.
+      # It assumes 'name', 'description', 'severity', 'cve', 'packageName', 'installedVersion', 'fixedVersion'
+      # are available in OWASP report and match your ScanResult.vulnerabilities structure.
+      # WARNING: The JQ paths for 'installedVersion' and 'fixedVersion' might need adjustment
+      # based on the *exact* structure of your OWASP Dependency-Check JSON report.
+      OWASP_VULNS=$(echo "$OWASP_REPORT_JSON" | jq -c '
+        [
+          .dependencies[] |
+          select(.vulnerabilities != null) |
+          .vulnerabilities[] |
+          {
+            name: (.name // "N/A"),
+            description: (.description // "No description available"),
+            severity: (.severity // "UNKNOWN"),
+            cve: (.cveId // "N/A"),
+            packageName: (.fileName // "N/A"), # OWASP uses fileName for the dependency itself
+            installedVersion: (.vulnerableSoftwareIdentifier[0].version // "N/A"), # Adjusted path, verify with your report
+            fixedVersion: (.vulnerableSoftwareIdentifier[] | select(.versionEndIncluding != null) | .versionEndIncluding // "N/A") # Adjusted path, verify with your report
+          }
+        ]
+      ')
+
+      # Handle potential JQ errors (e.g., if OWASP_VULNS is empty or invalid JSON)
+      if [ $? -ne 0 ]; then
+        echo "Warning: JQ parsing for OWASP vulnerabilities failed. Setting vulnerabilities to empty array."
+        OWASP_VULNS="[]"
+      fi
+
+      OWASP_REPORT_URL="${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/dependency-check-report.json"
+
+      PAYLOAD=$(cat <<EOF
+      {
+        "project": "$MONGO_PROJECT_ID", # <-- Using the dynamically provided MongoDB Project ID
+        "tool": "OWASP",
+        "severity": "$OWASP_SEVERITY",
+        "vulnerabilities": $OWASP_VULNS,
+        "reportUrl": "$OWASP_REPORT_URL",
+        "gitlabPipelineId": "$CI_PIPELINE_ID",
+        "gitlabJobId": "$CI_JOB_ID"
+      }
+      EOF
+      )
+    - *post_scan_result_definition # Use the template to post the results
   artifacts:
     paths:
-      - zap-report.html
-  allow_failure: true
+      - dependency-check-report.json
+    expire_in: 1 week
 
-# -------------------------
-# PUSH
-# -------------------------
-push_image:
-  stage: push
-  image: docker:latest
-  services:
-    - docker:dind
+# --- TRIVY STAGE ---
+trivy_scan:
+  stage: trivy
+  image: aquasec/trivy:latest
+  variables:
+    BACKEND_URL: "$BACKEND_URL" # Ensure backend URL is available
+    MONGO_PROJECT_ID: "$MONGO_PROJECT_ID" # Ensure Mongo Project ID is available
   script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
-    - docker push $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA
-  only:
-    - main
+    - apk add --no-cache jq # Ensure jq is installed
+    - trivy fs --format json --output trivy-report.json . # Runs Trivy directly in the container
+    - |
+      TRIVY_REPORT_JSON=$(cat trivy-report.json)
 
-# -------------------------
-# DEPLOY
-# -------------------------
-deploy:
-  stage: deploy
+      TRIVY_SEVERITY="None"
+      # Determine overall severity from Trivy findings
+      if echo "$TRIVY_REPORT_JSON" | jq -e '.Results[] | select(.Vulnerabilities[]?.Severity == "CRITICAL")' > /dev/null; then
+        TRIVY_SEVERITY="Critical"
+      elif echo "$TRIVY_REPORT_JSON" | jq -e '.Results[] | select(.Vulnerabilities[]?.Severity == "HIGH")' > /dev/null; then
+        TRIVY_SEVERITY="High"
+      elif echo "$TRIVY_REPORT_JSON" | jq -e '.Results[] | select(.Vulnerabilities[]?.Severity == "MEDIUM")' > /dev/null; then
+        TRIVY_SEVERITY="Medium"
+      elif echo "$TRIVY_REPORT_JSON" | jq -e '.Results[] | select(.Vulnerabilities[]?.Severity == "LOW")' > /dev/null; then
+        TRIVY_SEVERITY="Low"
+      fi
+
+      # This JQ query attempts to map Trivy vulnerabilities to your schema.
+      # It flattens the results from different sections (e.g., OS, libraries).
+      TRIVY_VULNS=$(echo "$TRIVY_REPORT_JSON" | jq -c '
+        [
+          .Results[] |
+          select(.Vulnerabilities != null) |
+          .Vulnerabilities[] |
+          {
+            name: (.VulnerabilityID // "N/A"),
+            description: (.Title // "No description available"),
+            severity: (.Severity // "UNKNOWN"),
+            cve: (.VulnerabilityID // "N/A"), # Trivy often uses VulnerabilityID as CVE-like
+            packageName: (.PkgName // "N/A"),
+            installedVersion: (.InstalledVersion // "N/A"),
+            fixedVersion: (.FixedVersion // "N/A"),
+            type: (.Type // "N/A")
+          }
+        ]
+      ')
+
+      # Handle potential JQ errors
+      if [ $? -ne 0 ]; then
+        echo "Warning: JQ parsing for Trivy vulnerabilities failed. Setting vulnerabilities to empty array."
+        TRIVY_VULNS="[]"
+      fi
+
+      TRIVY_REPORT_URL="${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/trivy-report.json"
+
+      PAYLOAD=$(cat <<EOF
+      {
+        "project": "$MONGO_PROJECT_ID", # <-- Using the dynamically provided MongoDB Project ID
+        "tool": "Trivy",
+        "severity": "$TRIVY_SEVERITY",
+        "vulnerabilities": $TRIVY_VULNS,
+        "reportUrl": "$TRIVY_REPORT_URL",
+        "gitlabPipelineId": "$CI_PIPELINE_ID",
+        "gitlabJobId": "$CI_JOB_ID"
+      }
+      EOF
+      )
+    - *post_scan_result_definition # Use the template to post the results
+  artifacts:
+    paths:
+      - trivy-report.json
+    expire_in: 1 week
+
+# --- REPORT STAGE (Aggregated Reporting) ---
+report_generation:
+  stage: report
+  image: curlimages/curl:latest # Use a lightweight image with curl and jq
+  dependencies:
+    # Ensure all previous scan jobs are successful before running this stage
+    - sonarqube_scan
+    - owasp_dependency_check
+    - trivy_scan
+  variables:
+    BACKEND_URL: "$BACKEND_URL" # Ensure backend URL is available
+    MONGO_PROJECT_ID: "$MONGO_PROJECT_ID" # Ensure Mongo Project ID is available
   script:
-    - echo "Deploying your application..."
-    # Add your deploy commands here (e.g., Ansible, SSH, Kubernetes)
-  only:
-    - main
-#Remplacez les espaces réservés tels que your-group/your-project, your_project_key, your-sonarqube-url, et your-running-app-urlpar vos valeurs réelles.
+    - apk add --no-cache jq # Install jq for JSON processing
 
-#S'assurer:
+    - echo "🔄 Starting aggregated report generation..."
 
-#Votre projet comprend un Dockerfile.
+    # 1. Fetch artifacts from previous jobs (GitLab CI/CD does this automatically for 'dependencies')
+    # The files will be in the working directory from the paths defined in their 'artifacts' section.
 
-#Vos variables de registre ( CI_REGISTRY_USER, CI_REGISTRY_PASSWORD, etc.) sont définies dans les paramètres GitLab CI/CD.
+    # 2. Extract and combine vulnerabilities from OWASP and Trivy
+    - OWASP_VULNS_RAW=$(cat dependency-check-report.json | jq -c '
+        [
+          .dependencies[] |
+          select(.vulnerabilities != null) |
+          .vulnerabilities[] |
+          {
+            name: (.name // "N/A"),
+            description: (.description // "No description available"),
+            severity: (.severity // "UNKNOWN"),
+            cve: (.cveId // "N/A"),
+            packageName: (.fileName // "N/A"),
+            installedVersion: (.vulnerableSoftwareIdentifier[0].version // "N/A"),
+            fixedVersion: (.vulnerableSoftwareIdentifier[] | select(.versionEndIncluding != null) | .versionEndIncluding // "N/A"),
+            source: "OWASP" # Add source for differentiation
+          }
+        ]
+      ' || echo "[]") # Default to empty array on JQ error
 
-#Vous avez correctement intégré SonarQube (avec une instance et un jeton en cours d'exécution).
+    - TRIVY_VULNS_RAW=$(cat trivy-report.json | jq -c '
+        [
+          .Results[] |
+          select(.Vulnerabilities != null) |
+          .Vulnerabilities[] |
+          {
+            name: (.VulnerabilityID // "N/A"),
+            description: (.Title // "No description available"),
+            severity: (.Severity // "UNKNOWN"),
+            cve: (.VulnerabilityID // "N/A"),
+            packageName: (.PkgName // "N/A"),
+            installedVersion: (.InstalledVersion // "N/A"),
+            fixedVersion: (.FixedVersion // "N/A"),
+            type: (.Type // "N/A"),
+            source: "Trivy" # Add source for differentiation
+          }
+        ]
+      ' || echo "[]") # Default to empty array on JQ error
 
-#Votre application est déployée et accessible par ZAP
+    # Combine all vulnerabilities from different tools
+    - ALL_VULNERABILITIES=$(jq -c --slurp '.[0] + .[1]' <(echo "$OWASP_VULNS_RAW") <(echo "$TRIVY_VULNS_RAW"))
+    - echo "Total vulnerabilities collected: $(echo "$ALL_VULNERABILITIES" | jq 'length')"
+
+    # 3. Determine overall highest severity
+    - |
+      OVERALL_SEVERITY="None"
+      if echo "$ALL_VULNERABILITIES" | jq -e 'map(.severity | ascii_upcase) | contains(["CRITICAL"])' > /dev/null; then
+        OVERALL_SEVERITY="Critical"
+      elif echo "$ALL_VULNERABILITIES" | jq -e 'map(.severity | ascii_upcase) | contains(["HIGH"])' > /dev/null; then
+        OVERALL_SEVERITY="High"
+      elif echo "$ALL_VULNERABILITIES" | jq -e 'map(.severity | ascii_upcase) | contains(["MEDIUM"])' > /dev/null; then
+        OVERALL_SEVERITY="Medium"
+      elif echo "$ALL_VULNERABILITIES" | jq -e 'map(.severity | ascii_upcase) | contains(["LOW"])' > /dev/null; then
+        OVERALL_SEVERITY="Low"
+      fi
+      echo "Overall severity determined: $OVERALL_SEVERITY"
+
+    # 4. Construct report URLs for artifact access
+    - SONAR_REPORT_URL="${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
+    - OWASP_ARTIFACT_URL="${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/dependency-check-report.json"
+    - TRIVY_ARTIFACT_URL="${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/trivy-report.json"
+
+    # 5. Construct the final aggregated payload
+    - PAYLOAD=$(cat <<EOF
+      {
+        "project": "$MONGO_PROJECT_ID",
+        "tool": "Aggregated Report",
+        "severity": "$OVERALL_SEVERITY",
+        "vulnerabilities": $ALL_VULNERABILITIES,
+        "reportUrl": {
+          "sonarQube": "$SONAR_REPORT_URL",
+          "owaspArtifact": "$OWASP_ARTIFACT_URL",
+          "trivyArtifact": "$TRIVY_ARTIFACT_URL",
+          "gitlabPipeline": "${CI_PIPELINE_URL}"
+        },
+        "gitlabPipelineId": "$CI_PIPELINE_ID",
+        "gitlabJobId": "$CI_JOB_ID",
+        "message": "Comprehensive security scan report generated."
+      }
+      EOF
+      )
+    - echo "Generated Aggregated Report Payload:"
+    - echo "$PAYLOAD" | jq . # Pretty print for logs
+
+    # 6. POST the aggregated payload to your backend
+    - curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL" || true
+    - echo "✅ Aggregated report successfully sent to backend."
+  artifacts:
+    # You might want to save the final aggregated JSON report as an artifact too
+    paths:
+      - aggregated-report.json
+    expire_in: 1 week

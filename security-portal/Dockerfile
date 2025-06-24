@@ -1,7 +1,7 @@
 
 
 # -------- Stage 1: Build Angular app --------
-FROM node:18 AS build
+FROM node:18-slim  AS build
 
 WORKDIR /usr/src/app
 

@@ -7,6 +7,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { CLONE_DIR } = require('../controllers/gitController');
 const ScanResult = require('../models/ScanResult');
+const Project = require('../models/Project');
 
 // Clone repository only
 router.post('/', gitController.cloneRepository);
@@ -95,20 +96,61 @@ router.post('/analyze-from-url', async (req, res, next) => {
 
 // Save scan results from GitLab CI pipeline
 router.post('/scan-results', async (req, res) => {
+  console.log('Received POST to /scan-results. Request Body:', req.body);
+
+  // Destructure required fields first
+  const { project, tool, severity, score, issues, vulnerabilities, reportUrl, gitlabPipelineId, gitlabJobId } = req.body;
+
+  // Basic validation for required fields
+  if (!project || !tool || !severity) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: project (MongoDB ObjectId), tool, and overall severity.',
+      received: req.body // Show what was received for debugging
+    });
+  }
+
   try {
-    const newResult = new ScanResult(req.body);
+    // Optional: Verify the project ObjectId exists in your DB for integrity
+    const existingProject = await Project.findById(project);
+    if (!existingProject) {
+      return res.status(404).json({
+        success: false,
+        error: `Project with ID ${project} not found in database. Cannot save scan result.`
+      });
+    }
+
+    const newResult = new ScanResult({
+      project: project,
+      tool: tool,
+      severity: severity, // Overall scan severity (e.g., from tool summary)
+      score: score, // Overall score if provided by tool
+      issues: issues || [], // Ensure it's an array, even if empty
+      vulnerabilities: vulnerabilities || [], // Ensure it's an array
+      reportUrl: reportUrl,
+      gitlabPipelineId: gitlabPipelineId,
+      gitlabJobId: gitlabJobId
+      // createdAt is default
+    });
+
     await newResult.save();
-    res.status(201).json({ 
+    console.log(`✅ Scan result from ${tool} saved successfully for project ${project}: ${newResult._id}`);
+
+    res.status(201).json({
       success: true,
-      message: 'Scan result saved successfully',
+      message: `Scan result from ${tool} saved successfully`,
       resultId: newResult._id
     });
+
   } catch (err) {
-    console.error('Failed to save scan result:', err);
-    res.status(500).json({ 
+    console.error('❌ Failed to save scan result:', err);
+    // Mongoose validation errors will have 'err.errors'
+    const validationErrors = err.errors ? Object.keys(err.errors).map(key => err.errors[key].message).join(', ') : err.message;
+
+    res.status(500).json({
       success: false,
-      error: 'Failed to save scan result', 
-      details: err.message 
+      error: 'Failed to save scan result',
+      details: validationErrors // Provide more specific validation details
     });
   }
 });
