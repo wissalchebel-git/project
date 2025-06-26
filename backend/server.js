@@ -59,19 +59,42 @@ app.use('/api/git', gitRoutes);
 app.use('//api/git/analyse', gitRoutes);
 app.use('//api/git/gitlab-push', gitRoutes);
 app.use('/scan-results', gitRoutes);
-
+app.use('/api/gitlab', gitRoutes); 
 // Error handling middleware
 app.use(errorHandler);
 
-// Keycloak setup 
-// const keycloak = getKeycloak({ store: memoryStore });
-// app.use(keycloak.middleware());
+// Basic health check
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString()
+  });
+});
 
-// Routes (use Keycloak protection when ready)
-// app.use('/api/security-reports', keycloak.protect(), reportRoutes);
-// app.use('/api/auth', authRoutes); // public route
-// app.use('/api/users', keycloak.protect(), userRoutes);
+// Global error handler
+app.use((error, req, res, next) => {
+  console.error('Global Error Handler:', error);
+  
+  if (res.headersSent) {
+    return next(error);
+  }
+  
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? error.message : 'Contact administrator'
+  });
+});
 
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Route not found',
+    path: req.originalUrl
+  });
+});
 
 
 //  Register Prometheus
@@ -186,4 +209,8 @@ app.post('/recommendations', express.json(), (req, res) => {
 
 // Start the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔧 GitLab API health: http://localhost:${PORT}/api/git/health`);
+});

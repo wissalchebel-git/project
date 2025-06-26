@@ -86,7 +86,23 @@ const createGitLabProject = async (projectName, namespaceId = null) => {
     throw error;
   }
 };
+// Delete GitLab project (for cleanup on failures)
+const deleteGitLabProject = async (projectId) => {
+  const GITLAB_API_TOKEN = process.env.GITLAB_API_TOKEN;
+  const url = `https://gitlab.com/api/v4/projects/${projectId}`;
 
+  try {
+    await axios.delete(url, {
+      headers: {
+        'PRIVATE-TOKEN': GITLAB_API_TOKEN,
+      },
+    });
+    console.log(`✅ GitLab project ${projectId} deleted successfully`);
+  } catch (error) {
+    console.error(`❌ Failed to delete GitLab project ${projectId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
 // Configure Git user if not already configured
 const configureGitUser = async (localRepoPath) => {
   try {
@@ -293,19 +309,112 @@ const uploadFilesToGitLabProject = async (localTempPath, projectId) => {
   }
 };
 // Workflow complet d'analyse
+// Add CI/CD variable to GitLab project
+const addGitLabProjectVariable = async (projectId, key, value, isProtected = false, isMasked = false) => {
+  const GITLAB_API_TOKEN = process.env.GITLAB_API_TOKEN;
+  const url = `https://gitlab.com/api/v4/projects/${projectId}/variables`;
 
+  const data = {
+    key,
+    value,
+    protected: isProtected,
+    masked: isMasked,
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        'PRIVATE-TOKEN': GITLAB_API_TOKEN,
+      },
+    });
+    console.log(`✅ Variable ${key} added to GitLab project ${projectId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Failed to add variable ${key} to project ${projectId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
+// Setup CI/CD variables for a GitLab project
+const setupCICDVariables = async (gitlabProjectId, mongoProjectId) => {
+  console.log('⚙️ Setting up CI/CD variables for the GitLab project...');
+  
+  const variablesToAdd = [
+    {
+      key: 'SONAR_TOKEN',
+      value: process.env.SONAR_TOKEN_FOR_GITLAB_CI,
+      protected: true,
+      masked: true,
+      required: true,
+      errorMessage: 'SONAR_TOKEN_FOR_GITLAB_CI environment variable is not set in backend.'
+    },
+    {
+      key: 'MONGO_PROJECT_ID',
+      value: mongoProjectId.toString(),
+      protected: false,
+      masked: false,
+      required: true,
+      errorMessage: 'MONGO_PROJECT_ID is required but not provided.'
+    },
+    {
+      key: 'BACKEND_URL',
+      value: process.env.BACKEND_API_URL || 'http://localhost:5000/api/git/scan-results',
+      protected: false,
+      masked: false,
+      required: false,
+      errorMessage: 'BACKEND_URL could not be determined.'
+    },
+    {
+      key: 'ZAP_API_KEY',
+      value: process.env.ZAP_API_KEY,
+      protected: true,
+      masked: true,
+      required: true,
+      errorMessage: 'ZAP_API_KEY variable is not set in backend.'
+    }
+  ];
+
+  // Validate required variables
+  for (const variable of variablesToAdd) {
+    if (variable.required && !variable.value) {
+      throw new Error(variable.errorMessage);
+    }
+  }
+
+  // Add variables sequentially to avoid rate limiting
+  for (const variable of variablesToAdd) {
+    if (variable.value) {
+      try {
+        await addGitLabProjectVariable(
+          gitlabProjectId,
+          variable.key,
+          variable.value,
+          variable.protected,
+          variable.masked
+        );
+        console.log(`✅ ${variable.key} added to GitLab project variables.`);
+      } catch (error) {
+        console.error(`❌ Failed to add ${variable.key}:`, error.message);
+        throw new Error(`Failed to configure ${variable.key} variable: ${error.message}`);
+      }
+    } else {
+      console.warn(`⚠️ Skipping ${variable.key} - value not provided`);
+    }
+  }
+};
 const analyzeClientRepository = async (req, res) => {
   const { repoUrl, token } = req.body;
 
-   let clientRepoPath; // Declare outside try for cleanup in catch
-  let analysisTempPath; // Declare outside try for cleanup in catch
-  let projectDoc; // Declare outside try for access in catch
-
+  let clientRepoPath;
+  let analysisTempPath;
+  let projectDoc;
+  let gitlabProject;
 
   try {
-    // 1. Clone client repository (still local for initial access to code)
+    // 1. Clone client repository
     const projectName = path.basename(repoUrl, '.git');
-    clientRepoPath = path.join(CLONE_DIR, projectName); // Assign here
+    clientRepoPath = path.join(CLONE_DIR, projectName);
 
     // Remove existing directory if exists
     if (fs.existsSync(clientRepoPath)) {
@@ -343,35 +452,28 @@ const analyzeClientRepository = async (req, res) => {
       } catch (error) {
         retries++;
         if (retries >= maxRetries) {
-          throw error; // Re-throw if max retries reached
+          throw error;
         }
         console.log(`Retrying clone in 5 seconds...`);
-        await new Promise(res => setTimeout(res, 5000)); // Wait before retrying
+        await new Promise(res => setTimeout(res, 5000));
       }
     }
 
-    // 2. Create analysis repository ID (This is generally not needed if GitLab provides one)
-    // We will use `gitlabProject.id` for everything related to the GitLab project.
-
-     // 3. Create GitLab project for analysis
-    const gitlabProjectName = `client-scan-${Date.now()}`; // Unique name
-    const gitlabProject = await createGitLabProject(gitlabProjectName);
+    // 2. Create GitLab project for analysis
+    const gitlabProjectName = `client-scan-${Date.now()}`;
+    gitlabProject = await createGitLabProject(gitlabProjectName);  // Store in variable for cleanup
     console.log(`✅ GitLab project created: ${gitlabProject.web_url}`);
-    // Assuming you also meant to create the analysis project with the same name/ID
-    console.log(`✅ GitLab analysis project created: ${gitlabProject.web_url}`);
 
-    // --- NEW LOGIC: Save / Link GitLab Project to your MongoDB Project model ---
+    // 3. Save/Link GitLab Project to MongoDB
     try {
-      // Check if a Project document with this GitLab ID already exists
       projectDoc = await Project.findOne({ gitlabProjectId: gitlabProject.id });
 
       if (!projectDoc) {
-        // If not, create a new Project document
         projectDoc = new Project({
-          name: gitlabProject.name, // Use the name generated for GitLab
-          gitlabProjectId: gitlabProject.id, // Store the numerical GitLab ID
-          gitlabProjectUrl: gitlabProject.web_url, // Store the GitLab project URL
-          originalRepoUrl: repoUrl // Store the original repo URL for reference
+          name: gitlabProject.name,
+          gitlabProjectId: gitlabProject.id,
+          gitlabProjectUrl: gitlabProject.web_url,
+          originalRepoUrl: repoUrl
         });
         await projectDoc.save();
         console.log(`✅ MongoDB Project document created with ID: ${projectDoc._id}`);
@@ -380,23 +482,84 @@ const analyzeClientRepository = async (req, res) => {
       }
     } catch (projectDbError) {
       console.error('❌ Failed to create/find MongoDB Project document:', projectDbError);
+      
+      // Clean up GitLab project if MongoDB entry fails
+      if (gitlabProject && gitlabProject.id) {
+        try {
+          await deleteGitLabProject(gitlabProject.id);
+          console.log('✅ GitLab project cleaned up after MongoDB failure');
+        } catch (cleanupError) {
+          console.warn(`⚠️ Failed to cleanup GitLab project ${gitlabProject.id}: ${cleanupError.message}`);
+        }
+      }
+      
       return res.status(500).json({
         success: false,
         error: 'Failed to manage project in database',
         details: projectDbError.message
       });
     }
-    // 4. Prepare analysis repository locally (copy files to a temp directory)
-    analysisTempPath = path.join(CLONE_DIR, `client-scan-temp-${Date.now()}`); 
-    await prepareRepoForAnalysis(clientRepoPath, analysisTempPath); 
+
+    // 4. Setup CI/CD variables
+    try {
+      await setupCICDVariables(gitlabProject.id, projectDoc._id);
+      console.log('✅ All CI/CD variables configured successfully');
+    } catch (variableSetupError) {
+      console.error('❌ Failed to set GitLab CI/CD variables:', variableSetupError.message);
+      
+      // Clean up both GitLab project and MongoDB document
+      if (gitlabProject && gitlabProject.id) {
+        try {
+          await deleteGitLabProject(gitlabProject.id);
+          console.log('✅ GitLab project cleaned up after variable setup failure');
+        } catch (cleanupError) {
+          console.warn(`⚠️ Failed to cleanup GitLab project ${gitlabProject.id}: ${cleanupError.message}`);
+        }
+      }
+      
+      if (projectDoc && projectDoc._id) {
+        try {
+          await Project.findByIdAndDelete(projectDoc._id);
+          console.log('✅ MongoDB project document cleaned up');
+        } catch (cleanupError) {
+          console.warn(`⚠️ Failed to cleanup MongoDB document ${projectDoc._id}: ${cleanupError.message}`);
+        }
+      }
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to configure GitLab CI/CD variables for the project.',
+        details: variableSetupError.message
+      });
+    }
+
+    // 5. Prepare analysis repository locally
+    analysisTempPath = path.join(CLONE_DIR, `client-scan-temp-${Date.now()}`);
+    await prepareRepoForAnalysis(clientRepoPath, analysisTempPath);
     console.log(`✅ Client code copied to temporary analysis directory: ${analysisTempPath}`);
 
-    // 5. Upload all prepared files and CI config to the remote GitLab project via API
+    // 6. Upload files to GitLab project
     await uploadFilesToGitLabProject(analysisTempPath, gitlabProject.id);
     console.log('✅ All files uploaded and committed to GitLab successfully via API.');
 
+    // 7. Save initial scan result
+    try {
+      const initialScanResult = new ScanResult({
+        project: projectDoc._id,
+        tool: 'GitLab CI Initiator',
+        severity: 'None',
+        issues: [],
+        vulnerabilities: [],
+        score: 100
+      });
+      await initialScanResult.save();
+      console.log('✅ Initial scan result (CI Initiator) saved successfully.');
+    } catch (saveError) {
+      console.error('❌ Failed to save initial scan result:', saveError);
+      // Don't fail the entire process for this
+    }
 
-    // 6. Cleanup local temporary repo and client repo
+    // 8. Cleanup local files
     if (analysisTempPath && fs.existsSync(analysisTempPath)) {
       fs.rmSync(analysisTempPath, { recursive: true, force: true });
     }
@@ -405,43 +568,22 @@ const analyzeClientRepository = async (req, res) => {
     }
     console.log('✅ Local temporary files cleaned up.');
 
-    // --- NEW LOGIC: Save Initial Scan Result (now using correct IDs and enums) ---
-    try {
-      const initialScanResult = new ScanResult({
-        project: projectDoc._id, // Use the MongoDB ObjectId from your Project document
-        tool: 'GitLab CI Initiator', // Now a valid enum value in your updated schema
-        severity: 'None', // Default severity for an initiation record
-        issues: [], // No issues/vulnerabilities at this initial stage
-        vulnerabilities: [],
-        score: 100 // Starting with a perfect score
-      });
-      await initialScanResult.save();
-      console.log('✅ Initial scan result (CI Initiator) saved successfully.');
-    } catch (saveError) {
-      console.error('❌ Failed to save initial scan result:', saveError);
-      // If saving the initial scan result fails, you might still want to
-      // return a success for the GitLab setup, or fail the entire request.
-      // For now, it's just a log, but consider the impact.
-      // throw saveError; // Uncomment if you want this error to stop the main flow
-    }
-    // --- END NEW LOGIC ---
-
     return res.status(200).json({
-       success: true,
+      success: true,
       message: 'Client repository analysis setup completed successfully',
       analysisRepo: {
-        id: gitlabProject.id, // GitLab's numerical ID
+        id: gitlabProject.id,
         name: gitlabProject.name,
         url: gitlabProject.web_url,
         pipelineUrl: `${gitlabProject.web_url}/-/pipelines`
       },
-      mongoProjectId: projectDoc._id // Send this back to the caller
+      mongoProjectId: projectDoc._id
     });
 
   } catch (err) {
     console.error('❌ Analysis setup failed:', err);
 
-    // Ensure cleanup even on failure
+    // Comprehensive cleanup on failure
     if (analysisTempPath && fs.existsSync(analysisTempPath)) {
       fs.rmSync(analysisTempPath, { recursive: true, force: true });
     }
@@ -449,10 +591,24 @@ const analyzeClientRepository = async (req, res) => {
       fs.rmSync(clientRepoPath, { recursive: true, force: true });
     }
 
-    // If the project was created in GitLab but saving to DB failed,
-    // you might want to log this specifically or consider GitLab cleanup.
-    if (projectDoc && projectDoc.gitlabProjectId) {
-      console.warn(`⚠️ GitLab project ${projectDoc.gitlabProjectUrl} was created, but subsequent DB operations failed.`);
+    // Clean up GitLab project if it was created
+    if (gitlabProject && gitlabProject.id) {
+      try {
+        await deleteGitLabProject(gitlabProject.id);
+        console.log('✅ GitLab project cleaned up after failure');
+      } catch (cleanupError) {
+        console.warn(`⚠️ GitLab project ${gitlabProject.web_url} was created but cleanup failed. Manual cleanup may be required.`);
+      }
+    }
+
+    // Clean up MongoDB document if it was created
+    if (projectDoc && projectDoc._id && !projectDoc.isNew) {
+      try {
+        await Project.findByIdAndDelete(projectDoc._id);
+        console.log('✅ MongoDB project document cleaned up');
+      } catch (cleanupError) {
+        console.warn(`⚠️ Failed to cleanup MongoDB document: ${cleanupError.message}`);
+      }
     }
 
     res.status(500).json({
@@ -463,11 +619,145 @@ const analyzeClientRepository = async (req, res) => {
   }
 };
 
+// API endpoint to add variables (can be called internally or externally)
+const addProjectVariable = async (req, res) => {
+  const { projectId, key, value, protected: isProtected = false, masked: isMasked = false } = req.body;
 
-module.exports = {
-  cloneRepository,       
-  createGitLabProject,     
-  prepareRepoForAnalysis, 
-  analyzeClientRepository, 
-  CLONE_DIR                
+  if (!projectId || !key || value === undefined) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required parameters: projectId, key, and value are required'
+    });
+  }
+
+  try {
+    const result = await addGitLabProjectVariable(projectId, key, value, isProtected, isMasked);
+    res.status(200).json({
+      success: true,
+      message: `Variable ${key} added successfully to project ${projectId}`,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add project variable',
+      details: error.message
+    });
+  }
 };
+
+
+// --- Scan Results API Handlers ---
+const saveScanResult = async (req, res) => {
+  console.log('Received POST to /scan-results. Request Body:', req.body);
+
+  const { project, tool, severity, score, issues, vulnerabilities, reportUrl, gitlabPipelineId, gitlabJobId } = req.body;
+
+  if (!project || !tool || !severity) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: project (MongoDB ObjectId), tool, and overall severity.',
+      received: req.body
+    });
+  }
+
+  try {
+    const existingProject = await Project.findById(project);
+    if (!existingProject) {
+      return res.status(404).json({
+        success: false,
+        error: `Project with ID ${project} not found in database. Cannot save scan result.`
+      });
+    }
+
+    const newResult = new ScanResult({
+      project: project,
+      tool: tool,
+      severity: severity,
+      score: score,
+      issues: issues || [],
+      vulnerabilities: vulnerabilities || [],
+      reportUrl: reportUrl,
+      gitlabPipelineId: gitlabPipelineId,
+      gitlabJobId: gitlabJobId
+    });
+
+    await newResult.save();
+    console.log(`✅ Scan result from ${tool} saved successfully for project ${project}: ${newResult._id}`);
+
+    res.status(201).json({
+      success: true,
+      message: `Scan result from ${tool} saved successfully`,
+      resultId: newResult._id
+    });
+
+  } catch (err) {
+    console.error('❌ Failed to save scan result:', err);
+    const validationErrors = err.errors ? Object.keys(err.errors).map(key => err.errors[key].message).join(', ') : err.message;
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save scan result',
+      details: validationErrors
+    });
+  }
+};
+
+const getScanResults = async (req, res) => {
+  try {
+    const results = await ScanResult.find().sort({ createdAt: -1 });
+    res.json({
+      success: true,
+      count: results.length,
+      results: results
+    });
+  } catch (err) {
+    console.error('Failed to fetch scan results:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch scan results',
+      details: err.message
+    });
+  }
+};
+
+const getScanResultById = async (req, res) => {
+  try {
+    const result = await ScanResult.findById(req.params.id);
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        error: 'Scan result not found'
+      });
+    }
+    res.json({
+      success: true,
+      result: result
+    });
+  } catch (err) {
+    console.error('Failed to fetch scan result:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch scan result',
+      details: err.message
+    });
+  }
+};
+
+// Update your module.exports in controllers/gitController.js
+module.exports = {
+  analyzeClientRepository,
+  addProjectVariable,
+  createGitLabProject,
+  deleteGitLabProject,
+  addGitLabProjectVariable,
+  setupCICDVariables,
+  CLONE_DIR, 
+  prepareRepoForAnalysis, 
+  uploadFilesToGitLabProject, 
+  saveScanResult, 
+  getScanResults, 
+  getScanResultById, 
+  cloneRepository 
+};
+

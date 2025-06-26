@@ -1,201 +1,271 @@
 // routes/gitRoutes.js
-
 const express = require('express');
 const router = express.Router();
-const gitController = require('../controllers/gitController');
-const path = require('path');
-const { execSync } = require('child_process');
-const { CLONE_DIR } = require('../controllers/gitController');
-const ScanResult = require('../models/ScanResult');
-const Project = require('../models/Project');
+const {
+  analyzeClientRepository,
+  addProjectVariable,
+  createGitLabProject,
+  deleteGitLabProject,
+  addGitLabProjectVariable,
+  setupCICDVariables,
+  cloneRepository,
+  saveScanResult, 
+  getScanResults, 
+  getScanResultById, 
+} = require('../controllers/gitController'); 
 
-// Clone repository only
-router.post('/', gitController.cloneRepository);
 
-// Complete analysis workflow 
-router.post('/analyze', gitController.analyzeClientRepository);
-
-// Legacy GitLab push endpoint 
-router.post('/gitlab-push', async (req, res, next) => {
-  try {
-    const { repoUrl, token, clientRepoName } = req.body;
-    
-    if (!clientRepoName) {
-      return res.status(400).json({ error: 'clientRepoName is required' });
-    }
-    
-    const analysisRepoId = Date.now();
-    const clientRepoPath = path.join(CLONE_DIR, clientRepoName);
-    
-    // Check if client repo exists
-    if (!require('fs').existsSync(clientRepoPath)) {
-      return res.status(404).json({ 
-        error: 'Client repository not found. Please clone it first using POST /' 
-      });
-    }
-
-    // Step 1: Create GitLab project for analysis
-    const project = await gitController.createGitLabProject(`client-scan-${analysisRepoId}`);
-    const gitlabRepoUrl = project.http_url_to_repo;
-    console.log(`✅ GitLab project created: ${project.web_url}`);
-
-    // Step 2: Prepare analysis repository
-    const analysisRepoPath = await gitController.prepareRepoForAnalysis(clientRepoPath, analysisRepoId);
-    
-    // Step 3: Add CI config
-    gitController.addCIConfig(analysisRepoPath);
-    
-    // Step 4: Commit all files
-    await gitController.commitAllFiles(analysisRepoPath);
-    
-    // Step 5: Push to GitLab
-    await gitController.pushRepo(analysisRepoPath, gitlabRepoUrl);
-
-    res.json({ 
-      success: true,
-      message: 'Client code analyzed and pushed to GitLab successfully!', 
-      analysisRepo: {
-        id: analysisRepoId,
-        url: project.web_url,
-        pipelineUrl: `${project.web_url}/-/pipelines`
-      }
-    });
-  } catch (err) {
-    console.error('GitLab push workflow failed:', err);
-    res.status(500).json({ 
-      success: false,
-      error: 'GitLab push workflow failed', 
-      details: err.message 
-    });
-  }
-});
-
-// Alternative: Direct analysis from URL (RECOMMENDED)
-router.post('/analyze-from-url', async (req, res, next) => {
-  try {
-    const { repoUrl, token } = req.body;
-    
-    if (!repoUrl) {
-      return res.status(400).json({ error: 'repoUrl is required' });
-    }
-    
-    // Use the complete workflow function
-    const result = await gitController.analyzeClientRepository({ body: { repoUrl, token } }, res);
-    
-    // Note: analyzeClientRepository already sends the response
-    
-  } catch (err) {
-    console.error('Analysis from URL failed:', err);
-    res.status(500).json({ 
-      success: false,
-      error: 'Analysis from URL failed', 
-      details: err.message 
-    });
-  }
-});
+router.post('/', cloneRepository);
 
 // Save scan results from GitLab CI pipeline
-router.post('/scan-results', async (req, res) => {
-  console.log('Received POST to /scan-results. Request Body:', req.body);
+router.post('/scan-results', saveScanResult); // Moved logic to controller
 
-  // Destructure required fields first
-  const { project, tool, severity, score, issues, vulnerabilities, reportUrl, gitlabPipelineId, gitlabJobId } = req.body;
-
-  // Basic validation for required fields
-  if (!project || !tool || !severity) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing required fields: project (MongoDB ObjectId), tool, and overall severity.',
-      received: req.body // Show what was received for debugging
-    });
-  }
-
-  try {
-    // Optional: Verify the project ObjectId exists in your DB for integrity
-    const existingProject = await Project.findById(project);
-    if (!existingProject) {
-      return res.status(404).json({
-        success: false,
-        error: `Project with ID ${project} not found in database. Cannot save scan result.`
-      });
-    }
-
-    const newResult = new ScanResult({
-      project: project,
-      tool: tool,
-      severity: severity, // Overall scan severity (e.g., from tool summary)
-      score: score, // Overall score if provided by tool
-      issues: issues || [], // Ensure it's an array, even if empty
-      vulnerabilities: vulnerabilities || [], // Ensure it's an array
-      reportUrl: reportUrl,
-      gitlabPipelineId: gitlabPipelineId,
-      gitlabJobId: gitlabJobId
-      // createdAt is default
-    });
-
-    await newResult.save();
-    console.log(`✅ Scan result from ${tool} saved successfully for project ${project}: ${newResult._id}`);
-
-    res.status(201).json({
-      success: true,
-      message: `Scan result from ${tool} saved successfully`,
-      resultId: newResult._id
-    });
-
-  } catch (err) {
-    console.error('❌ Failed to save scan result:', err);
-    // Mongoose validation errors will have 'err.errors'
-    const validationErrors = err.errors ? Object.keys(err.errors).map(key => err.errors[key].message).join(', ') : err.message;
-
-    res.status(500).json({
-      success: false,
-      error: 'Failed to save scan result',
-      details: validationErrors // Provide more specific validation details
-    });
-  }
-});
-
-// Get scan results
-router.get('/scan-results', async (req, res) => {
-  try {
-    const results = await ScanResult.find().sort({ createdAt: -1 });
-    res.json({
-      success: true,
-      count: results.length,
-      results: results
-    });
-  } catch (err) {
-    console.error('Failed to fetch scan results:', err);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to fetch scan results', 
-      details: err.message 
-    });
-  }
-});
+// Get scan results (all)
+router.get('/scan-results', getScanResults); // Moved logic to controller
 
 // Get specific scan result by ID
-router.get('/scan-results/:id', async (req, res) => {
-  try {
-    const result = await ScanResult.findById(req.params.id);
-    if (!result) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Scan result not found' 
-      });
-    }
-    res.json({
-      success: true,
-      result: result
-    });
-  } catch (err) {
-    console.error('Failed to fetch scan result:', err);
-    res.status(500).json({ 
+router.get('/scan-results/:id', getScanResultById); // Moved logic to controller
+
+
+// Middleware for request validation
+const validateAnalyzeRequest = (req, res, next) => {
+  const { repoUrl } = req.body;
+  
+  if (!repoUrl) {
+    return res.status(400).json({
       success: false,
-      error: 'Failed to fetch scan result', 
-      details: err.message 
+      error: 'Repository URL is required'
     });
   }
+  
+  // Basic URL validation
+  try {
+    new URL(repoUrl);
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid repository URL format'
+    });
+  }
+  
+  next();
+};
+
+const validateVariableRequest = (req, res, next) => {
+  const { projectId, key, value } = req.body;
+  
+  if (!projectId || !key || value === undefined) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required parameters: projectId, key, and value are required'
+    });
+  }
+  
+  // Validate projectId is a number (GitLab project IDs are numeric)
+  if (isNaN(parseInt(projectId))) {
+    return res.status(400).json({
+      success: false,
+      error: 'projectId must be a valid number'
+    });
+  }
+  
+  // Validate key format (GitLab variable names should be valid)
+  if (!/^[A-Z][A-Z0-9_]*$/.test(key)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Variable key must start with a letter and contain only uppercase letters, numbers, and underscores'
+    });
+  }
+  
+  next();
+};
+
+// Environment variables validation middleware
+const validateEnvironment = (req, res, next) => {
+  const requiredEnvVars = ['GITLAB_API_TOKEN'];
+  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    return res.status(500).json({
+      success: false,
+      error: 'Server configuration error',
+      details: `Missing required environment variables: ${missingVars.join(', ')}`
+    });
+  }
+  
+  next();
+};
+
+/**
+ * @route POST /api/git/analyze
+ * @desc Analyze client repository by cloning, creating GitLab project, and setting up CI/CD
+ * @body {string} repoUrl - The repository URL to analyze
+ * @body {string} [token] - Optional authentication token for private repositories
+ * @returns {object} Analysis setup result with GitLab project details
+ */
+router.post('/analyze', validateEnvironment, validateAnalyzeRequest, analyzeClientRepository);
+
+/**
+ * @route POST /api/git/add-variable
+ * @desc Add a CI/CD variable to a GitLab project
+ * @body {number} projectId - GitLab project ID
+ * @body {string} key - Variable name (uppercase, letters, numbers, underscores)
+ * @body {string} value - Variable value
+ * @body {boolean} [protected=false] - Whether the variable is protected
+ * @body {boolean} [masked=false] - Whether the variable value is masked in logs
+ * @returns {object} Success result with variable details
+ */
+router.post('/add-variable', validateEnvironment, validateVariableRequest, addProjectVariable);
+
+/**
+ * @route POST /api/git/create-project
+ * @desc Create a new GitLab project
+ * @body {string} name - Project name
+ * @body {number} [namespaceId] - Optional namespace ID for the project
+ * @returns {object} Created project details
+ */
+router.post('/create-project', validateEnvironment, async (req, res) => {
+  const { name, namespaceId } = req.body;
+  
+  if (!name) {
+    return res.status(400).json({
+      success: false,
+      error: 'Project name is required'
+    });
+  }
+  
+  try {
+    const project = await createGitLabProject(name, namespaceId);
+    res.status(200).json({
+      success: true,
+      message: 'GitLab project created successfully',
+      project
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create GitLab project',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route DELETE /api/git/delete-project/:projectId
+ * @desc Delete a GitLab project
+ * @param {number} projectId - GitLab project ID to delete
+ * @returns {object} Deletion result
+ */
+router.delete('/delete-project/:projectId', validateEnvironment, async (req, res) => {
+  const { projectId } = req.params;
+  
+  if (!projectId || isNaN(parseInt(projectId))) {
+    return res.status(400).json({
+      success: false,
+      error: 'Valid project ID is required'
+    });
+  }
+  
+  try {
+    await deleteGitLabProject(parseInt(projectId));
+    res.status(200).json({
+      success: true,
+      message: `GitLab project ${projectId} deleted successfully`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete GitLab project',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/git/setup-variables/:projectId
+ * @desc Setup standard CI/CD variables for a project
+ * @param {number} projectId - GitLab project ID
+ * @body {string} mongoProjectId - MongoDB project ID
+ * @returns {object} Setup result
+ */
+router.post('/setup-variables/:projectId', validateEnvironment, async (req, res) => {
+  const { projectId } = req.params;
+  const { mongoProjectId } = req.body;
+  
+  if (!projectId || isNaN(parseInt(projectId))) {
+    return res.status(400).json({
+      success: false,
+      error: 'Valid project ID is required'
+    });
+  }
+  
+  if (!mongoProjectId) {
+    return res.status(400).json({
+      success: false,
+      error: 'MongoDB project ID is required'
+    });
+  }
+  
+  try {
+    await setupCICDVariables(parseInt(projectId), mongoProjectId);
+    res.status(200).json({
+      success: true,
+      message: 'CI/CD variables setup completed successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to setup CI/CD variables',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/git/health
+ * @desc Health check endpoint to verify GitLab API connectivity
+ * @returns {object} Health status
+ */
+router.get('/health', validateEnvironment, async (req, res) => {
+  try {
+    // Test GitLab API connectivity
+    const axios = require('axios');
+    const response = await axios.get('https://gitlab.com/api/v4/user', {
+      headers: {
+        'PRIVATE-TOKEN': process.env.GITLAB_API_TOKEN,
+      },
+      timeout: 5000
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'GitLab API connection successful',
+      user: response.data.username,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'GitLab API connection failed',
+      details: error.response?.data || error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Error handling middleware for this router
+router.use((error, req, res, next) => {
+  console.error('GitLab Router Error:', error);
+  
+  if (res.headersSent) {
+    return next(error);
+  }
+  
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error in GitLab operations',
+    details: process.env.NODE_ENV === 'development' ? error.message : 'Contact administrator'
+  });
 });
 
 module.exports = router;
