@@ -6,7 +6,7 @@ stages:
 variables:
   BACKEND_URL: "http://localhost:5000/api/git/scan-results"
   TRIVY_IMAGE: "docker.io/aquasec/trivy:latest"
-  SONAR_HOST_URL: "https://11f1-41-231-58-146.ngrok-free.app"
+  SONAR_HOST_URL: "https://6547-196-224-7-95.ngrok-free.app"
   FRONTEND_URL: "https://security-portal"
 
 
