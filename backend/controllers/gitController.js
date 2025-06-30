@@ -359,7 +359,7 @@ const setupCICDVariables = async (gitlabProjectId, mongoProjectId) => {
     },
     {
       key: 'BACKEND_URL',
-      value: process.env.BACKEND_API_URL || 'http://localhost:5000/api/git/scan-results',
+      value: process.env.BACKEND_API_URL ,
       protected: false,
       masked: false,
       required: false,
