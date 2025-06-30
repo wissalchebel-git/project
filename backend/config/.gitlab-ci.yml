@@ -4,103 +4,72 @@ stages:
   - report
 
 variables:
-  BACKEND_URL: "http://localhost:5000/api/git/scan-results"
+  BACKEND_URL: "https://9e42-41-231-58-146.ngrok-free.app/api/git/scan-results"
   TRIVY_IMAGE: "docker.io/aquasec/trivy:latest"
-  SONAR_HOST_URL: "https://6547-196-224-7-95.ngrok-free.app"
+  SONAR_HOST_URL: "https://ea39-41-231-58-146.ngrok-free.app"
   FRONTEND_URL: "https://security-portal"
 
 
-.post_scan_result_template:
-  image: curlimages/curl:latest
-  before_script:
-    - apk add --no-cache jq
-  script:
-    - |
-      echo "Posting payload to $BACKEND_URL:"
-      echo "$PAYLOAD" | jq .
-      curl -X POST \
-        -H "Content-Type: application/json" \
-        -d "$PAYLOAD" \
-        "$BACKEND_URL" || {
-        echo "Échec de l'envoi au backend, mais on continue..."
-        exit 0
-      }
-
-
 owasp_zap_scan:
-  stage: scan # Make sure 'scan' stage is defined in your stages list
-  image: zaproxy/zap-stable:latest
+  stage: scan
+  image: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+      alias: docker
   variables:
-    # Make sure ZAP_API_KEY is defined as a CI/CD variable in GitLab
-    # Set it to be "masked" and "protected"
-    ZAP_API_KEY: "$ZAP_API_KEY" # This references the GitLab CI/CD variable
-    # Define the target URL as a variable for easier management
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    ZAP_API_KEY: "$ZAP_API_KEY"
     TARGET_URL: "https://security-portal"
-  before_script:
-  - echo "$CI_REGISTRY_PASSWORD" | docker login ghcr.io -u "$CI_REGISTRY_USER" --password-stdin
   script:
-    - set -euo pipefail # Exit immediately if a command exits with a non-zero status.
+    - set -euo pipefail
 
-    - echo "Démarrage du scan OWASP ZAP..."
+    - echo "Connexion à Docker Registry si nécessaire..."
+    - echo "$CI_REGISTRY_PASSWORD" | docker login ghcr.io -u "$CI_REGISTRY_USER" --password-stdin || true
 
-      /zap/zap.sh -daemon -port 8090 -host 0.0.0.0 \
-      -config api.key=${ZAP_API_KEY} \
-      -config api.disablekey=false \
-      -config api.incapikeyonly=true \
-      -config api.addrs.addr.name=.* \
-      -config api.addrs.addr.regex=true &
+    - echo "Pulling ZAP Docker image for DinD..."
+    - docker pull zaproxy/zap-stable:latest
 
-    # Wait for ZAP to start and become responsive
-    - echo "Attente du démarrage de ZAP..."
-      /zap/zap-cli.py -p 8090 -k ${ZAP_API_KEY} wait_for_zap_ready -t 120 # Wait up to 120 seconds
-    - echo "ZAP démarré, lancement du scan..."
-
-      /zap/zap-cli.py -p 8090 -k ${ZAP_API_KEY} open-url ${TARGET_URL}
-      /zap/zap-cli.py -p 8090 -k ${ZAP_API_KEY} spider ${TARGET_URL}
-
-    # Wait for spider to complete
-    - echo "Attente de la fin du spider..."
-      /zap/zap-cli.py -p 8090 -k ${ZAP_API_KEY} spider_status || true # Use || true to prevent job failure if spider fails
-
-    - echo "Lancement du scan actif..."
-      /zap/zap-cli.py -p 8090 -k ${ZAP_API_KEY} active-scan ${TARGET_URL}
-
-    # Wait for active scan to complete
-    - echo "Attente de la fin du scan actif..."
-      /zap/zap-cli.py -p 8090 -k ${ZAP_API_KEY} active_scan_status || true 
-
-    - echo "Génération du rapport..."
-    
-      /zap/zap-cli.py -p 8090 -k ${ZAP_API_KEY} report -o report-zap.html -f html
-
-    # Shutdown ZAP gracefully
-    - echo "Arrêt de ZAP..."
-      /zap/zap-cli.py -p 8090 -k ${ZAP_API_KEY} shutdown
+    - echo "Démarrage et exécution du scan ZAP via zap-full-scan.py dans un conteneur Docker..."
+    - >
+      docker run --rm --name zap_full_scan
+      -e ZAP_API_KEY=${ZAP_API_KEY}
+      -v "$(pwd)":/zap/wrk/:rw
+      zaproxy/zap-stable:latest
+      zap-full-scan.py
+      -t ${TARGET_URL}
+      -r /zap/wrk/report-zap.html
+      -J /zap/wrk/report-zap.json
+      -P 8080
+      -d
 
     - echo "Scan ZAP terminé."
+
   artifacts:
-    when: always # Always upload artifacts, even on failure
+    when: always
     paths:
       - report-zap.html
+      - report-zap.json
     expire_in: 1 week
-  allow_failure: true # Allow the job to fail, but still collect artifacts
+
+  allow_failure: true
 
 owasp_zap_post_results:
   stage: post_scan_results
-  image: curlimages/curl:latest
+  image: alpine:latest 
   needs:
     - job: owasp_zap_scan
-    - job: sonarqube_scan
-    - job: owasp_dependency_check
-    - job: trivy_scan
+
   variables:
     MONGO_PROJECT_ID: "$MONGO_PROJECT_ID"
+    BACKEND_URL: "$BACKEND_URL" 
   before_script:
-    - apk add --no-cache jq
+    - apk update && apk add --no-cache jq curl 
   script:
     - |
       # Envoi résultat OWASP ZAP
       if [ -f report-zap.html ]; then
+        echo "Fichier report-zap.html trouvé."
         PAYLOAD=$(jq -n \
           --arg project "$MONGO_PROJECT_ID" \
           --arg tool "OWASP ZAP" \
@@ -108,24 +77,17 @@ owasp_zap_post_results:
           --arg reportUrl "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/report-zap.html" \
           --arg gitlabPipelineId "$CI_PIPELINE_ID" \
           --arg gitlabJobId "$CI_JOB_ID" \
-          '{
-            project: $project,
-            tool: $tool,
-            severity: $severity,
-            reportUrl: $reportUrl,
-            gitlabPipelineId: $gitlabPipelineId,
-            gitlabJobId: $gitlabJobId,
-            message: "OWASP ZAP scan terminé."
-          }')
+          '{            project: $project,            tool: $tool,            severity: $severity,            reportUrl: $reportUrl,            gitlabPipelineId: $gitlabPipelineId,            gitlabJobId: $gitlabJobId,            message: "OWASP ZAP scan terminé."          }')
         echo "Envoi résultat OWASP ZAP..."
         echo "$PAYLOAD" | jq .
         curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL"
       else
-        echo "Fichier report-zap.html non trouvé, pas d'envoi."
+        echo "Fichier report-zap.html non trouvé, pas d'envoi. Vérifiez que 'owasp_zap_scan' a bien uploadé ses artifacts et que ce job le 'needs'."
+        exit 1
       fi
   artifacts:
     paths:
-      - report-zap.html
+      - report-zap.html 
     expire_in: 1 week
   allow_failure: true
 
@@ -147,7 +109,7 @@ sonarqube_scan:
         -Dsonar.projectVersion="$SONAR_PROJECT_VERSION" \
         -Dsonar.sources="$SONAR_SOURCES" \
         -Dsonar.host.url="$SONAR_HOST_URL" \
-        -Dsonar.login="$SONAR_TOKEN"
+        -Dsonar.token="$SONAR_TOKEN"
   artifacts:
     when: always
     paths:
@@ -157,12 +119,12 @@ sonarqube_scan:
 
 sonarqube_post_results:
   stage: post_scan_results
-  image: curlimages/curl:latest
+  image: alpine:latest
   needs: [sonarqube_scan]
   variables:
     MONGO_PROJECT_ID: "$MONGO_PROJECT_ID"
-  before_script:
-    - apk add --no-cache jq
+  before_script: # <--- Now explicitly defined here
+    - apk update && apk add --no-cache jq curl
   script:
     - |
       SONAR_REPORT_URL="${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
@@ -205,32 +167,37 @@ owasp_dependency_check:
     expire_in: 1 week
   allow_failure: true
 
+
 owasp_post_results:
   stage: post_scan_results
-  image: curlimages/curl:latest
+  image: alpine:latest # <--- Now explicitly defined here
   needs: [owasp_dependency_check]
   variables:
     MONGO_PROJECT_ID: "$MONGO_PROJECT_ID"
-  before_script:
-    - apk add --no-cache jq
+    BACKEND_URL: "$BACKEND_URL"
+  before_script: # <--- Now explicitly defined here
+    - apk update && apk add --no-cache jq curl
   script:
     - |
       if [ ! -f "dependency-check-report.json" ]; then
-        echo "Fichier rapport OWASP non trouvé, création d'un rapport vide"
-        echo '{"dependencies": []}' > dependency-check-report.json
+        echo "OWASP Dependency Check report not found, creating empty report for backend."
+        echo '{"report": []}' > dependency-check-report.json
       fi
-      OWASP_REPORT_JSON=$(cat dependency-check-report.json)
-      # Définir la sévérité
-      OWASP_SEVERITY="None"
-      if echo "$OWASP_REPORT_JSON" | jq -e '.dependencies[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity | test("HIGH|CRITICAL"; "i"))' > /dev/null 2>&1; then
-        OWASP_SEVERITY="High"
-      elif echo "$OWASP_REPORT_JSON" | jq -e '.dependencies[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity | test("MEDIUM"; "i"))' > /dev/null 2>&1; then
-        OWASP_SEVERITY="Medium"
-      elif echo "$OWASP_REPORT_JSON" | jq -e '.dependencies[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity | test("LOW"; "i"))' > /dev/null 2>&1; then
-        OWASP_SEVERITY="Low"
+
+      ODC_REPORT_JSON=$(cat dependency-check-report.json)
+      
+      ODC_SEVERITY="None"
+      if echo "$ODC_REPORT_JSON" | jq -e '.dependencies[]?.vulnerabilities[]? | select(.severity == "CRITICAL")' > /dev/null 2>&1; then
+        ODC_SEVERITY="Critical"
+      elif echo "$ODC_REPORT_JSON" | jq -e '.dependencies[]?.vulnerabilities[]? | select(.severity == "HIGH")' > /dev/null 2>&1; then
+        ODC_SEVERITY="High"
+      elif echo "$ODC_REPORT_JSON" | jq -e '.dependencies[]?.vulnerabilities[]? | select(.severity == "MEDIUM")' > /dev/null 2>&1; then
+        ODC_SEVERITY="Medium"
+      elif echo "$ODC_REPORT_JSON" | jq -e '.dependencies[]?.vulnerabilities[]? | select(.severity == "LOW")' > /dev/null 2>&1; then
+        ODC_SEVERITY="Low"
       fi
-      # Extraction vulnérabilités
-      OWASP_VULNS=$(echo "$OWASP_REPORT_JSON" | jq -c '
+
+      ODC_VULNS=$(echo "$ODC_REPORT_JSON" | jq -c '
         try (
           [
             .dependencies[]? |
@@ -238,26 +205,27 @@ owasp_post_results:
             .vulnerabilities[]? |
             {
               name: (.name // "N/A"),
-              description: (.description // "Aucune description disponible"),
+              description: (.description // "No description available"),
               severity: (.severity // "UNKNOWN"),
-              cve: (.cveId // "N/A"),
+              cve: (.cve // "N/A"),
               packageName: (.fileName // "N/A"),
-              installedVersion: (try (.vulnerableSoftwareIdentifier[]? | select(.version? != null).version) catch "N/A"),
-              fixedVersion: (try (.vulnerableSoftwareIdentifier[]? | select(.versionEndIncluding? != null).versionEndIncluding) catch "N/A"),
-              source: "OWASP"
+              installedVersion: (.version // "N/A"),
+              fixedVersion: (.vulnerability.fixedVersion // "N/A"),
+              type: "Dependency",
+              source: "OWASP Dependency Check"
             }
           ]
         ) catch []
       ')
-      # URL du rapport
-      OWASP_REPORT_URL="${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/dependency-check-report.json"
-      # Construction du payload
+
+      ODC_REPORT_URL="${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/dependency-check-report.json"
+
       PAYLOAD=$(jq -n \
         --arg project "$MONGO_PROJECT_ID" \
-        --arg tool "OWASP" \
-        --arg severity "$OWASP_SEVERITY" \
-        --argjson vulnerabilities "$OWASP_VULNS" \
-        --arg reportUrl "$OWASP_REPORT_URL" \
+        --arg tool "OWASP Dependency Check" \
+        --arg severity "$ODC_SEVERITY" \
+        --argjson vulnerabilities "$ODC_VULNS" \
+        --arg reportUrl "$ODC_REPORT_URL" \
         --arg gitlabPipelineId "$CI_PIPELINE_ID" \
         --arg gitlabJobId "$CI_JOB_ID" \
         '{
@@ -269,53 +237,96 @@ owasp_post_results:
           gitlabPipelineId: $gitlabPipelineId,
           gitlabJobId: $gitlabJobId
         }')
-      curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL"
+
+      echo "Payload being sent to $BACKEND_URL:"
+      echo "$PAYLOAD" | jq .
+      curl -X POST \
+        -H "Content-Type: application/json" \
+        -d "$PAYLOAD" \
+        "$BACKEND_URL" || {
+        echo "Échec de l'envoi au backend, mais on continue..."
+        exit 0
+      }
   allow_failure: true
 
 trivy_scan:
   stage: scan
-  image: aquasec/trivy:latest
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   script:
-    - |
-      echo "Démarrage du scan Trivy..."
-      trivy fs --format json --output trivy-report.json . || {
-        echo "Trivy échoué, création rapport vide"
-        echo '{"Results": []}' > trivy-report.json
-      }
-      echo "Scan Trivy terminé."
+    - set -euo pipefail
+
+    - echo "Pulling Trivy Docker image for DinD..."
+    - docker pull aquasec/trivy:latest
+
+    - echo "Démarrage du scan Trivy..."
+    # The following 'docker run' command starts a Trivy container.
+    # We override its default ENTRYPOINT to /bin/sh to run our custom script.
+    # The current project directory is mounted into the container at /src with read-write permissions.
+    - >
+      docker run --rm
+      --entrypoint /bin/sh
+      -v "$(pwd)":/src:rw
+      aquasec/trivy:latest 
+      -c "
+        # Explicitly use the full path to the trivy executable within the container.
+        # This resolves 'trivy: not found' errors when ENTRYPOINT is overridden.
+        /usr/local/bin/trivy fs --format json --output /src/trivy-report.json /src || {
+          echo \"Trivy scan failed, creating empty report.\"
+          echo '{\\\"Results\\\": []}' > /src/trivy-report.json
+        }
+      "
+    - echo "Scan Trivy terminé."
+
   artifacts:
     paths:
       - trivy-report.json
     expire_in: 1 week
   allow_failure: true
 
+
 trivy_post_results:
   stage: post_scan_results
-  image: curlimages/curl:latest
+  image: alpine:latest 
   needs: [trivy_scan]
   variables:
     MONGO_PROJECT_ID: "$MONGO_PROJECT_ID"
+    # Assuming BACKEND_URL is a global variable, but explicitly declaring it here for clarity
+    BACKEND_URL: "$BACKEND_URL" 
   before_script:
-    - apk add --no-cache jq
+    # Now that we're using alpine:latest, we need to install both jq AND curl
+    - apk update && apk add --no-cache jq curl # <--- Install both jq and curl
   script:
     - |
+      # Envoi résultat Trivy
       if [ ! -f "trivy-report.json" ]; then
-        echo "Fichier rapport Trivy non trouvé, création rapport vide"
+        echo "Fichier rapport Trivy non trouvé, création rapport vide et sévérité None."
         echo '{"Results": []}' > trivy-report.json
-      fi
-      TRIVY_REPORT_JSON=$(cat trivy-report.json)
-      # Définir la sévérité
-      TRIVY_SEVERITY="None"
-      if echo "$TRIVY_REPORT_JSON" | jq -e '.Results[]? | select(.Vulnerabilities != null) | .Vulnerabilities[]? | select(.Severity == "CRITICAL")' > /dev/null 2>&1; then
-        TRIVY_SEVERITY="Critical"
-      elif echo "$TRIVY_REPORT_JSON" | jq -e '.Results[]? | select(.Vulnerabilities != null) | .Vulnerabilities[]? | select(.Severity == "HIGH")' > /dev/null 2>&1; then
-        TRIVY_SEVERITY="High"
-      elif echo "$TRIVY_REPORT_JSON" | jq -e '.Results[]? | select(.Vulnerabilities != null) | .Vulnerabilities[]? | select(.Severity == "MEDIUM")' > /dev/null 2>&1; then
-        TRIVY_SEVERITY="Medium"
-      elif echo "$TRIVY_REPORT_JSON" | jq -e '.Results[]? | select(.Vulnerabilities != null) | .Vulnerabilities[]? | select(.Severity == "LOW")' > /dev/null 2>&1; then
-        TRIVY_SEVERITY="Low"
-      fi
-      # Extraction vulnérabilités
+        TRIVY_SEVERITY="None" # Explicitly set severity to None if report is empty
+      else
+        echo "Fichier rapport Trivy trouvé. Analyse des vulnérabilités..."
+        TRIVY_REPORT_JSON=$(cat trivy-report.json)
+
+        # Définir la sévérité
+        TRIVY_SEVERITY="None" # Default to None
+        if echo "$TRIVY_REPORT_JSON" | jq -e '.Results[]? | select(.Vulnerabilities != null) | .Vulnerabilities[]? | select(.Severity == "CRITICAL")' > /dev/null 2>&1; then
+          TRIVY_SEVERITY="Critical"
+        elif echo "$TRIVY_REPORT_JSON" | jq -e '.Results[]? | select(.Vulnerabilities != null) | .Vulnerabilities[]? | select(.Severity == "HIGH")' > /dev/null 2>&1; then
+          TRIVY_SEVERITY="High"
+        elif echo "$TRIVY_REPORT_JSON" | jq -e '.Results[]? | select(.Vulnerabilities != null) | .Vulnerabilities[]? | select(.Severity == "MEDIUM")' > /dev/null 2>&1; then
+          TRIVY_SEVERITY="Medium"
+        elif echo "$TRIVY_REPORT_JSON" | jq -e '.Results[]? | select(.Vulnerabilities != null) | .Vulnerabilities[]? | select(.Severity == "LOW")' > /dev/null 2>&1; then
+          TRIVY_SEVERITY="Low"
+        fi
+      fi # Close the else block for clarity
+
+      # Extraction vulnérabilités (do this AFTER severity, and only if report exists or was generated empty)
+      # If report was initially missing, TRIVY_REPORT_JSON would be '{"Results": []}',
+      # so the jq extraction will correctly yield an empty array.
       TRIVY_VULNS=$(cat trivy-report.json | jq -c '
         try (
           [
@@ -336,9 +347,12 @@ trivy_post_results:
           ]
         ) catch []
       ')
+      
       # URL du rapport
       TRIVY_REPORT_URL="${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/trivy-report.json"
+      
       # Construction du payload
+      echo "Construction du payload JSON pour l'envoi..."
       PAYLOAD=$(jq -n \
         --arg project "$MONGO_PROJECT_ID" \
         --arg tool "Trivy" \
@@ -356,29 +370,43 @@ trivy_post_results:
           gitlabPipelineId: $gitlabPipelineId,
           gitlabJobId: $gitlabJobId
         }')
+      
+      echo "Payload à envoyer:"
+      echo "$PAYLOAD" | jq . # Pretty print payload for debugging
+      
+      echo "Envoi du rapport Trivy au backend..."
       curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL"
-  allow_failure: true
+  allow_failure: true 
 
 report_generation:
   stage: report
-  image: curlimages/curl:latest
+  image: alpine:latest
   needs:
+    - job: owasp_zap_scan
+    - job: owasp_dependency_check
+    - job: trivy_scan
     - job: sonarqube_post_results
-    - job: owasp_zap_post_results
-    - job: owasp_post_results
-    - job: trivy_post_results
   variables:
     MONGO_PROJECT_ID: "$MONGO_PROJECT_ID"
+    BACKEND_URL: "$BACKEND_URL"
+    SONAR_HOST_URL: "$SONAR_HOST_URL"
+    FRONTEND_URL: "$FRONTEND_URL"
   before_script:
-    - apk add --no-cache jq
+    - apk update && apk add --no-cache jq curl
   script:
     - |
+      set -euxo pipefail
+
       echo "Génération du rapport agrégé..."
+
       [ -f dependency-check-report.json ] || echo '{"dependencies": []}' > dependency-check-report.json
       [ -f trivy-report.json ] || echo '{"Results": []}' > trivy-report.json
+      [ -f report-zap.json ] || echo '{"site":[]}' > report-zap.json
 
-      # Extraction vulnérabilités
-      OWASP_VULNS_RAW=$(cat dependency-check-report.json | jq -c '
+      # --- Extract Vulnerabilities from each tool's JSON report ---
+
+      # OWASP Dependency Check (ODC)
+      ODC_VULNS_RAW=$(cat dependency-check-report.json | jq -c '
         try (
           [
             .dependencies[]? |
@@ -390,13 +418,27 @@ report_generation:
               severity: (.severity // "UNKNOWN"),
               cve: (.cveId // "N/A"),
               packageName: (.fileName // "N/A"),
-              installedVersion: (try (.vulnerableSoftwareIdentifier[]? | select(.version? != null).version) catch "N/A"),
-              fixedVersion: (try (.vulnerableSoftwareIdentifier[]? | select(.versionEndIncluding? != null).versionEndIncluding) catch "N/A"),
-              source: "OWASP"
+              installedVersion: (
+                if .vulnerableSoftwareIdentifier? | length > 0 then .vulnerableSoftwareIdentifier[0].version // "N/A"
+                else "N/A"
+                end
+              ),
+              fixedVersion: (
+                if .vulnerableSoftwareIdentifier? | length > 0 then
+                  .vulnerableSoftwareIdentifier[0].fixedVersion //
+                  .vulnerableSoftwareIdentifier[0].versionEndIncluding //
+                  .vulnerableSoftwareIdentifier[0].versionEndExcluding // "N/A"
+                else "N/A"
+                end
+              ),
+              type: "Dependency",
+              source: "OWASP Dependency Check"
             }
           ]
         ) catch []
       ')
+
+      # Trivy
       TRIVY_VULNS_RAW=$(cat trivy-report.json | jq -c '
         try (
           [
@@ -417,31 +459,52 @@ report_generation:
           ]
         ) catch []
       ')
-      # Fusionner vulnérabilités
-      ALL_VULNS=$(jq -c -s '.[0] + .[1]' <(echo "$OWASP_VULNS_RAW") <(echo "$TRIVY_VULNS_RAW"))
+
+      # OWASP ZAP (assuming 'report-zap.json' structure)
+      ZAP_VULNS_RAW=$(cat report-zap.json | jq -c '
+        try (
+          [
+            .site[]? |
+            select(.alerts != null) |
+            .alerts[]? |
+            {
+              name: (.alert // "N/A"),
+              description: (.description // "Aucune description disponible"),
+              severity: (.riskcode | tonumber | if . == 3 then "CRITICAL" elif . == 2 then "HIGH" elif . == 1 then "MEDIUM" elif . == 0 then "LOW" else "UNKNOWN" end),
+              cve: (if .cweid? then "CWE-" + (.cweid | tostring) else "N/A" end),
+              packageName: (.param // "N/A"),
+              installedVersion: "N/A",
+              fixedVersion: "N/A",
+              type: "Application Vulnerability",
+              source: "OWASP ZAP"
+            }
+          ]
+        ) catch []
+      ')
+
+      # Merge all vulnerabilities using --argjson to pass variables safely
+      # Corrected: Ensure the entire jq command is on one logical line or properly escaped.
+      ALL_VULNS=$(jq -n --argjson owasp_vulns "$ODC_VULNS_RAW" --argjson trivy_vulns "$TRIVY_VULNS_RAW" --argjson zap_vulns "$ZAP_VULNS_RAW" '$owasp_vulns + $trivy_vulns + $zap_vulns')
       echo "Total vuln : $(echo "$ALL_VULNS" | jq 'length')"
 
-      # Définir la sévérité globale
+      # Determine Overall Severity
       OVERALL_SEVERITY="None"
-      if echo "$ALL_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(. == "CRITICAL")' > /dev/null 2>&1; then
+      if echo "$ALL_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(IN("CRITICAL"))' > /dev/null 2>&1; then
         OVERALL_SEVERITY="Critical"
-      elif echo "$ALL_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(. == "HIGH")' > /dev/null 2>&1; then
+      elif echo "$ALL_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(IN("HIGH"))' > /dev/null 2>&1; then
         OVERALL_SEVERITY="High"
-      elif echo "$ALL_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(. == "MEDIUM")' > /dev/null 2>&1; then
+      elif echo "$ALL_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(IN("MEDIUM"))' > /dev/null 2>&1; then
         OVERALL_SEVERITY="Medium"
-      elif echo "$ALL_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(. == "LOW")' > /dev/null 2>&1; then
+      elif echo "$ALL_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(IN("LOW"))' > /dev/null 2>&1; then
         OVERALL_SEVERITY="Low"
       fi
       echo "Severité globale : $OVERALL_SEVERITY"
 
-      # URLs
       SONAR_REPORT_URL="${SONAR_HOST_URL}/dashboard?id=${CI_PROJECT_PATH_SLUG}"
       GITLAB_PIPELINE_URL="${CI_PROJECT_URL}/-/pipelines/${CI_PIPELINE_ID}"
 
-      # Rapport final
       echo "$ALL_VULNS" | jq '.' > aggregated-report.json
 
-      # Envoi du rapport
       PAYLOAD=$(jq -n \
         --arg project "$MONGO_PROJECT_ID" \
         --arg tool "Rapport Agrégé" \
@@ -450,7 +513,8 @@ report_generation:
         --arg reportUrl "$GITLAB_PIPELINE_URL" \
         --arg gitlabPipelineId "$CI_PIPELINE_ID" \
         --arg gitlabJobId "$CI_JOB_ID" \
-        --arg message "Rapport de sécurité global." \
+        --arg message "Rapport de sécurité global généré." \
+        --arg sonarqubeReportUrl "$SONAR_REPORT_URL" \
         '{
           project: $project,
           tool: $tool,
@@ -459,12 +523,20 @@ report_generation:
           reportUrl: $reportUrl,
           gitlabPipelineId: $gitlabPipelineId,
           gitlabJobId: $gitlabJobId,
-          message: $message
+          message: $message,
+          sonarqubeReportUrl: $sonarqubeReportUrl
         }')
+
+      echo "Payload à envoyer au backend:"
       echo "$PAYLOAD" | jq .
-      curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL"
+
+      curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL" || {
+        echo "Échec de l'envoi au backend, mais on continue (allow_failure: true)."
+        exit 0
+      }
   artifacts:
     when: always
     paths:
       - aggregated-report.json
     expire_in: 1 week
+  allow_failure: true
