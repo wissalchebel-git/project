@@ -8,7 +8,7 @@ const scanResultSchema = new mongoose.Schema({
   },
   tool: {
     type: String,
-    enum: ['SonarQube', 'Trivy', 'OWASP', 'GitLab CI Initiator', 'GitLeaks'], // Add any other tools you might use
+    enum: ['SonarQube', 'Trivy', 'OWASP', 'GitLab CI Initiator', 'GitLeaks', 'Automated Scan'], 
     required: true
   },
   issues: [{ // General issues (e.g., code smells, minor findings)
