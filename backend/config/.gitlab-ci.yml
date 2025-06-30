@@ -507,7 +507,7 @@ report_generation:
 
       PAYLOAD=$(jq -n \
         --arg project "$MONGO_PROJECT_ID" \
-        --arg tool "Rapport Agrégé" \
+        --arg tool "Automated Scan" \
         --arg severity "$OVERALL_SEVERITY" \
         --argjson vulnerabilities "$ALL_VULNS" \
         --arg reportUrl "$GITLAB_PIPELINE_URL" \
