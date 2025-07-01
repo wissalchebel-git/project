@@ -530,7 +530,7 @@ report_generation:
       echo "Payload à envoyer au backend:"
       echo "$PAYLOAD" | jq .
 
-      curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL" || {
+      curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL/api/reports/scan-results" || {
         echo "Échec de l'envoi au backend, mais on continue (allow_failure: true)."
         exit 0
       }
