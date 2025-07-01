@@ -20,10 +20,7 @@ dotenv.config();
 const app = express();
 app.use(express.json()); // to parse JSON body
 
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('MongoDB connected'))
+mongoose.connect(process.env.MONGO_URI).then(() => console.log('MongoDB connected')) 
   .catch(err => console.error('MongoDB connection error:', err));
 
 
@@ -42,7 +39,7 @@ app.use(bodyParser.json());
 
 // CORS
 app.use(cors({
-  origin: ['https://security-portal', 'http://security-portal'],
+  origin: ['https://security-portal', 'http://security-portal', 'http://localhost:4200'],
   credentials: true
 }));
 
