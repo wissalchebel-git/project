@@ -992,7 +992,7 @@ get implementedSecurityMeasuresStatus(): 'success' | 'warning' {
         MongoDB Project ID: ${mongoProjectId}`); // For debugging
 
         // 2. Immediately trigger the GitLab CI pipeline
-        this.triggerGitLabPipeline(gitlabProjectId, mongoProjectId);
+        // this.triggerGitLabPipeline(gitlabProjectId, mongoProjectId);
 
       },
       error: (err) => {
