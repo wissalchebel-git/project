@@ -1,36 +1,108 @@
-<nb-layout>
+<mat-toolbar color="primary">
+  <span>Security Scan Dashboard</span>
+  <span class="spacer"></span>
+  <button mat-icon-button (click)="fetchScanResults()" matTooltip="Refresh Data">
+    <mat-icon>refresh</mat-icon>
+  </button>
+</mat-toolbar>
+
+<div class="dashboard-container">
+  <mat-card class="dashboard-card">
+    <mat-card-header>
+      <mat-card-title>Aggregated Scan Reports</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div *ngIf="isLoading" class="loading-spinner">
+        Loading scan results...
+        <mat-spinner diameter="30"></mat-spinner>
+      </div>
+
+      <div *ngIf="errorMessage" class="error-message">
+        <mat-icon color="warn">error_outline</mat-icon> {{ errorMessage }}
+      </div>
+
+      <mat-form-field appearance="standard" class="full-width" *ngIf="!isLoading && !errorMessage">
+        <mat-label>Filter Reports</mat-label>
+        <input matInput (keyup)="applyFilter($event)" placeholder="Search by tool, project, etc." #input>
+      </mat-form-field>
+
+      <div class="mat-elevation-z8" *ngIf="!isLoading && !errorMessage">
+        <table mat-table [dataSource]="dataSource" matSort>
+
+          <ng-container matColumnDef="createdAt">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Date </th>
+            <td mat-cell *matCellDef="let element"> {{ element.createdAt }} </td>
+          </ng-container>
+
+          <ng-container matColumnDef="project">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Project </th>
+            <td mat-cell *matCellDef="let element"> {{ element.projectName }} </td>
+          </ng-container>
+
+          <ng-container matColumnDef="tool">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Tool </th>
+            <td mat-cell *matCellDef="let element"> {{ element.tool }} </td>
+          </ng-container>
+
+          <ng-container matColumnDef="severity">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Overall Severity </th>
+            <td mat-cell *matCellDef="let element">
+              <span [style.color]="getSeverityColor(element.severity)">
+                {{ element.severity }}
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="score">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Score </th>
+            <td mat-cell *matCellDef="let element"> {{ element.score }} </td>
+          </ng-container>
+
+          <ng-container matColumnDef="vulnerabilitiesCount">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Vulnerabilities </th>
+            <td mat-cell *matCellDef="let element"> {{ element.vulnerabilitiesCount }} </td>
+          </ng-container>
+
+          <ng-container matColumnDef="reportUrl">
+            <th mat-header-cell *matHeaderCellDef> Report Link </th>
+            <td mat-cell *matCellDef="let element">
+              <button mat-button color="primary" *ngIf="element.reportUrl" (click)="viewReport(element.reportUrl)">
+                <mat-icon>launch</mat-icon> View
+              </button>
+              <span *ngIf="!element.reportUrl">N/A</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef> Actions </th>
+            <td mat-cell *matCellDef="let element">
+              <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Actions menu">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #menu="matMenu">
+                <button mat-menu-item (click)="viewReport(element.reportUrl)">
+                  <mat-icon>visibility</mat-icon>
+                  <span>View Full Report</span>
+                </button>
+                <button mat-menu-item (click)="viewRecommendations(element._id)">
+                  <mat-icon>lightbulb</mat-icon>
+                  <span>View Recommendations</span>
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
 
 
-  <nb-layout-column>
-    <!-- Security Scan Results Card -->
-    <nb-card>
-      <nb-card-header>Security Scan Results</nb-card-header>
-      <nb-card-body>
-        <!-- ECharts component for displaying the chart -->
-        <div echarts [options]="chartOptions" class="echart"></div>
-      </nb-card-body>
-    </nb-card>
-  </nb-layout-column>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
 
-  <!-- Loading Spinner Section -->
-  <div *ngIf="isLoading" class="loading-spinner">
-    <nb-spinner></nb-spinner> <!-- Nebular Spinner component -->
-    <p>Loading chart data...</p>
-  </div>
-  
-  <!-- Error Message Section -->
-  <div *ngIf="errorMessage" class="error-message">
-    <p>{{ errorMessage }}</p>
-  </div>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" [attr.colspan]="displayedColumns.length">No data matching the filter "{{input.value}}"</td>
+          </tr>
+        </table>
 
-  <!-- Security Issues Overview Card -->
-  <nb-card *ngIf="!isLoading && !errorMessage">
-    <nb-card-header>
-      <h2>Security Issues Overview</h2>
-    </nb-card-header>
-    <nb-card-body>
-      <!-- ECharts component for displaying another chart -->
-      <div echarts [options]="chartOptions" class="chart-container"></div>
-    </nb-card-body>
-  </nb-card>
-</nb-layout>
+        <mat-paginator [pageSizeOptions]="[5, 10, 25, 100]" aria-label="Select page of scan reports"></mat-paginator>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>
