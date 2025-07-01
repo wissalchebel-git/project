@@ -54,7 +54,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/reports', reportRoutes);
+app.use('/api/reports', reporttRoutes);
 app.use('/api/git', gitRoutes);
 app.use('//api/git/analyse', gitRoutes);
 app.use('//api/git/gitlab-push', gitRoutes);
