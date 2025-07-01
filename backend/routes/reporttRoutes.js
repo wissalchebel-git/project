@@ -4,43 +4,29 @@ const reportController = require("../controllers/reportController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { body } = require("express-validator");
 
-//console.log("MIDDLEWARE:", authMiddleware); 
-//console.log("CONTROLLER:", reportController);
+// --- Routes for Scan Results & Recommendations ---
 
-// Create a new scan result and auto-generate recommendations
-router.post("/scan-results", authMiddleware,
-  [
-    body("scanId").not().isEmpty().withMessage("Scan ID is required."),
-    body("vulnerability").not().isEmpty().withMessage("Vulnerability is required."),
-    body("score").isNumeric().withMessage("Score must be a number."),
-    body("userId").not().isEmpty().withMessage("User ID is required."),
-  ],
-  reportController.createScanResult 
+// POST: Receive a new scan result and process it (save, generate recommendations)
+// This is the endpoint your GitLab CI `curl` command will hit.
+router.post("/scan-results",
+  // No express-validator body validation here, as the payload is dynamic
+  // You can add validation for required fields inside the controller.
+  // Consider removing authMiddleware if this endpoint is only hit by internal CI.
+  // If it's public, add strong authentication (e.g., API key, JWT token validation).
+  reportController.receiveAndProcessScanResults
 );
 
-// ✅ Receive raw scan results without validation/recommendations
-router.post("/scan-results/raw", authMiddleware, reportController.receiveScanResults);
+// GET: Get all scan results (with optional projectId query filter)
+router.get("/scan-results", authMiddleware, reportController.getScanResults);
 
-// Get all scan results
-router.get("/scan-results", authMiddleware, reportController.getAllScanResults);
-
-// Get scan result by ID
+// GET: Get a specific scan result by ID
 router.get("/scan-results/:id", authMiddleware, reportController.getScanResultById);
 
-// Get recommendations by scan result ID
-router.get("/scan-results/:scanResultId/recommendations", authMiddleware, reportController.getRecommendationsByScanResult);
+// GET: Get recommendations for a specific scan result ID
+router.get("/scan-results/:scanResultId/recommendations", authMiddleware, reportController.getRecommendationsByScanResultId);
 
-// Update scan result
-router.put("/scan-results/:id", authMiddleware, reportController.updateScanResult);
-
-// Delete scan result
-router.delete("/scan-results/:id", authMiddleware, reportController.deleteScanResult);
-
-// Add recommendation to a scan result
-router.post(
-  "/scan-results/:scanResultId/recommendations",
-  authMiddleware,
-  reportController.addRecommendationToScanResult
-);
+// You can keep or remove the following if they are not part of your core workflow for now:
+// router.put("/scan-results/:id", authMiddleware, reportController.updateScanResult);
+// router.delete("/scan-results/:id", authMiddleware, reportController.deleteScanResult);
 
 module.exports = router;
