@@ -1,6 +1,7 @@
 const ScanResult = require("../models/ScanResult");
 const Recommendation = require("../models/Recommendation");
 const Project = require("../models/Project"); 
+const mongoose = require('mongoose');
 const { validationResult } = require("express-validator"); // Keep this if you want validation
 
 // --- Helper function to calculate overall severity for a scan result ---
@@ -180,16 +181,25 @@ const generateRecommendations = async (scanResult) => {
 // --- Get all scan results (potentially with filters/pagination) ---
 const getScanResults = async (req, res) => {
   try {
-    // Example of filtering by project ID, if provided
-    const { projectId } = req.query; // Expecting projectId as a query parameter
-    let query = {};
+    // Récupérer les paramètres de requête : projectId et tool
+    const { projectId, tool } = req.query; // Expecting projectId and tool as query parameters
+
+    let query = {}; // Initialiser l'objet de requête vide
+
+    // 1. Filtrage par ID de projet (si fourni et valide)
     if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
       query.project = projectId;
     }
 
+    // 2. Filtrage par nom d'outil (si fourni)
+    if (tool) {
+      query.tool = tool; // Exemple: "Trivy", "OWASP ZAP", "Automated Scan"
+    }
+
+    // Exécuter la requête Mongoose avec les filtres dynamiques
     const results = await ScanResult.find(query)
-                                    .populate('project', 'name gitlabProjectId') // Populate project details
-                                    .sort({ createdAt: -1 });
+      .populate('project', 'name gitlabProjectId') // Populate project details
+      .sort({ createdAt: -1 }); // Trier par date de création, du plus récent au plus ancien
 
     res.json({
       success: true,
@@ -245,11 +255,121 @@ const getRecommendationsByScanResultId = async (req, res) => {
   }
 };
 
-// --- Other exports, if needed ---
+// --- Get the LATEST aggregated scan result for Grafana dashboard ---
+const getLatestAggregatedScanResult = async (req, res) => {
+    try {
+        const { projectId } = req.query; // Optionnel: filtrer par ID de projet
+
+        let query = { tool: "Rapport Agrégé" }; // Chercher spécifiquement les rapports agrégés
+        if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
+            query.project = projectId;
+        }
+
+        const latestScan = await ScanResult.findOne(query)
+                                           .sort({ createdAt: -1 }) // Le plus récent d'abord
+                                           .populate('project', 'name gitlabProjectId')
+                                           .lean(); // Utilisez .lean() pour obtenir un objet JS simple et non un document Mongoose
+
+        if (!latestScan) {
+            return res.status(404).json({
+                success: false,
+                message: projectId ? `No aggregated scan results found for project ID ${projectId}.` : "No aggregated scan results found."
+            });
+        }
+
+        // --- Important pour Grafana ---
+        // Si Grafana attend un tableau, même pour une seule entrée,
+        // vous pouvez envelopper le résultat.
+        // Ou si Grafana veut un objet unique, laissez-le tel quel.
+        // Pour les plugins JSON, un objet est souvent suffisant pour des "Stat Panels"
+        // et un tableau pour des "Table Panels" si vous utilisez `$.vulnerabilities`.
+
+        // Option 1: Retourner directement l'objet du dernier scan (bon pour Stat, etc.)
+        res.json(latestScan); // Grafana accèdera à des chemins comme $.severity, $.vulnerabilities
+
+        // Option 2 (si Grafana attend spécifiquement un tableau à la racine pour certaines visualisations)
+        // res.json([latestScan]); // Moins commun pour ce cas, mais possible.
+
+    } catch (err) {
+        console.error('❌ Failed to fetch latest aggregated scan result for Grafana:', err);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch latest aggregated scan result',
+            details: err.message
+        });
+    }
+};
+
+// Ajoutez cette nouvelle fonction à vos exports
+module.exports = {
+    receiveAndProcessScanResults,
+    getScanResults,
+    getScanResultById,
+    getRecommendationsByScanResultId,
+    getLatestAggregatedScanResult, // <--- NOUVEL EXPORT
+};
+// --- Get Scan Results for Time-Series Data (for Grafana Trends) ---
+const getScanResultsForTrends = async (req, res) => {
+    try {
+        const { projectId, tool, limit } = req.query; // projectId et tool comme filtres optionnels, limit pour le nombre de résultats
+
+        let query = {};
+        if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
+            query.project = projectId;
+        }
+        if (tool) {
+            query.tool = tool; // Ex: "Trivy", "OWASP ZAP", "Automated Scan"
+        }
+
+        // Récupérer les scans triés par date de création (du plus récent au plus ancien)
+        // Limiter le nombre de résultats si 'limit' est spécifié
+        const scans = await ScanResult.find(query)
+                                     .sort({ createdAt: -1 })
+                                     .limit(parseInt(limit) || 0) // Convertir en nombre, 0 signifie pas de limite
+                                     .lean(); // Retourne des objets JS purs, plus légers
+
+        // Formater les données pour Grafana (souvent un tableau d'objets avec un champ 'time' et des champs de métriques)
+        // Pour les graphiques de temps, Grafana aime un champ "time" et ensuite les valeurs.
+        const formattedResults = scans.map(scan => ({
+            time: scan.createdAt.getTime(), // Timestamp en millisecondes
+            severity_critical: scan.vulnerabilities.filter(v => v.severity === 'Critical').length,
+            severity_high: scan.vulnerabilities.filter(v => v.severity === 'High').length,
+            severity_medium: scan.vulnerabilities.filter(v => v.severity === 'Medium').length,
+            severity_low: scan.vulnerabilities.filter(v => v.severity === 'Low').length,
+            severity_none: scan.vulnerabilities.filter(v => v.severity === 'None').length,
+            total_vulnerabilities: scan.vulnerabilities.length,
+            overall_severity_text: scan.severity, // Texte de sévérité globale
+            report_url: scan.reportUrl, // URL du rapport spécifique
+            pipeline_id: scan.gitlabPipelineId,
+            job_id: scan.gitlabJobId,
+            tool_name: scan.tool,
+            project_name: scan.project ? scan.project.name : 'N/A', // Si populé
+            // ... toute autre métrique utile pour les graphiques
+        }));
+
+        res.json(formattedResults);
+
+    } catch (err) {
+        console.error('❌ Failed to fetch scan results for trends:', err);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch scan results for trends',
+            details: err.message
+        });
+    }
+};
+
+// Ajoutez cette nouvelle fonction à vos exports et à vos routes
+module.exports = {
+    // ... vos exports existants ...
+    getScanResultsForTrends, // NOUVEL EXPORT
+};
 module.exports = {
   receiveAndProcessScanResults,
   getScanResults,
   getScanResultById,
+  getLatestAggregatedScanResult,
+  getScanResultsForTrends,
   getRecommendationsByScanResultId,
   // ... other report-related functions if they map to this controller
 };
