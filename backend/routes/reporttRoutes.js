@@ -1,32 +1,34 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const reportController = require("../controllers/reportController");
-const authMiddleware = require("../middleware/authMiddleware");
-const { body } = require("express-validator");
+const reportController = require('../controllers/reportController');
 
-// --- Routes for Scan Results & Recommendations ---
+// Route pour recevoir et traiter les résultats de scan (POST)
+// C'est l'endpoint que vos jobs GitLab CI appellent pour envoyer les rapports
+router.post('/scan-results', reportController.receiveAndProcessScanResults);
 
-// POST: Receive a new scan result and process it (save, generate recommendations)
-// This is the endpoint your GitLab CI `curl` command will hit.
-router.post("/scan-results",
-  // No express-validator body validation here, as the payload is dynamic
-  // You can add validation for required fields inside the controller.
-  // Consider removing authMiddleware if this endpoint is only hit by internal CI.
-  // If it's public, add strong authentication (e.g., API key, JWT token validation).
-  reportController.receiveAndProcessScanResults
-);
+// Route pour récupérer tous les résultats de scan (GET)
+// Supporte le filtrage par projectId et/ou tool via les paramètres de requête (query parameters)
+// Exemple: /api/reports/scan-results?projectId=65c...&tool=Trivy
+router.get('/scan-results', reportController.getScanResults);
 
-// GET: Get all scan results (with optional projectId query filter)
-router.get("/scan-results", authMiddleware, reportController.getScanResults);
+// Route pour récupérer le DERNIER rapport agrégé (GET)
+// Idéal pour le tableau de bord principal de Grafana affichant l'état actuel.
+// Supporte le filtrage optionnel par projectId.
+// Exemple: /api/reports/aggregated-scan-results/latest?projectId=65c...
+router.get('/aggregated-scan-results/latest', reportController.getLatestAggregatedScanResult);
 
-// GET: Get a specific scan result by ID
-router.get("/scan-results/:id", authMiddleware, reportController.getScanResultById);
+// Route pour récupérer les résultats de scan spécifiquement pour les tendances (GET)
+// Renvoie des données formatées pour les graphiques de séries temporelles de Grafana.
+// Supporte le filtrage par projectId et/ou tool, et la limite du nombre de résultats.
+// Exemple: /api/reports/scan-results/trends?tool=Trivy&limit=10
+router.get('/scan-results/trends', reportController.getScanResultsForTrends);
 
-// GET: Get recommendations for a specific scan result ID
-router.get("/scan-results/:scanResultId/recommendations", authMiddleware, reportController.getRecommendationsByScanResultId);
+// Route pour récupérer un résultat de scan spécifique par son ID (GET)
+// Exemple: /api/reports/scan-results/65c...
+router.get('/scan-results/:id', reportController.getScanResultById);
 
-// You can keep or remove the following if they are not part of your core workflow for now:
-// router.put("/scan-results/:id", authMiddleware, reportController.updateScanResult);
-// router.delete("/scan-results/:id", authMiddleware, reportController.deleteScanResult);
+// Route pour récupérer les recommandations liées à un résultat de scan spécifique (GET)
+// Exemple: /api/reports/scan-results/65c.../recommendations
+router.get('/scan-results/:scanResultId/recommendations', reportController.getRecommendationsByScanResultId);
 
 module.exports = router;
