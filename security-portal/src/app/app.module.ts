@@ -9,7 +9,7 @@ import { NbSpinnerModule, NbThemeModule, NbLayoutModule, NbSidebarModule, NbMenu
 import { NbEvaIconsModule } from '@nebular/eva-icons';
 import { NbIconModule } from '@nebular/theme';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { DashboardComponent } from './pages/dashboard/dashboard.component';
+
 import { ReportsComponent } from './pages/reports/reports.component';
 import { SettingsComponent } from './pages/settings/settings.component';
 import { NgxEchartsModule } from 'ngx-echarts';
@@ -34,7 +34,6 @@ import { AuthComponent } from './auth/auth.component';
 @NgModule({
   declarations: [
     AppComponent,
-    DashboardComponent,
     ReportsComponent,
     SettingsComponent,
     EvaluationComponent,
