@@ -79,7 +79,7 @@ export interface RecommendationsResponse {
   providedIn: 'root'
 })
 export class ScanReportService {
-  private backendUrl = 'http://localhost:5000/api/reports'; // IMPORTANT: Use your actual backend URL here
+  private backendUrl = 'https://9e42-41-231-58-146.ngrok-free.app/api/reports'; // IMPORTANT: Use your actual backend URL here
 
   constructor(private http: HttpClient) { }
 
