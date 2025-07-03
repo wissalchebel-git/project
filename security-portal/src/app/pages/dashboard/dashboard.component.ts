@@ -1,4 +1,3 @@
-import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
@@ -19,7 +18,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner'; // For loading spinner
 import { MatDialog, MatDialogModule } from '@angular/material/dialog'; // For recommendation dialog
 
-import { ScanReportService, ScanResult, Project, Recommendation } from '../../services/scan-report.service';
+import { ScanReportService, ScanResult, Project, Recommendation } from '../../scan-report.service';
 import { Subject, takeUntil } from 'rxjs';
 
 // Create a dialog component for recommendations
