@@ -601,15 +601,7 @@ const analyzeClientRepository = async (req, res) => {
       }
     }
 
-    // Clean up MongoDB document if it was created
-    if (projectDoc && projectDoc._id && !projectDoc.isNew) {
-      try {
-        await Project.findByIdAndDelete(projectDoc._id);
-        console.log('✅ MongoDB project document cleaned up');
-      } catch (cleanupError) {
-        console.warn(`⚠️ Failed to cleanup MongoDB document: ${cleanupError.message}`);
-      }
-    }
+    
 
     res.status(500).json({
       success: false,
@@ -647,102 +639,7 @@ const addProjectVariable = async (req, res) => {
 };
 
 
-// --- Scan Results API Handlers ---
-const saveScanResult = async (req, res) => {
-  console.log('Received POST to /scan-results. Request Body:', req.body);
 
-  const { project, tool, severity, score, issues, vulnerabilities, reportUrl, gitlabPipelineId, gitlabJobId } = req.body;
-
-  if (!project || !tool || !severity) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing required fields: project (MongoDB ObjectId), tool, and overall severity.',
-      received: req.body
-    });
-  }
-
-  try {
-    const existingProject = await Project.findById(project);
-    if (!existingProject) {
-      return res.status(404).json({
-        success: false,
-        error: `Project with ID ${project} not found in database. Cannot save scan result.`
-      });
-    }
-
-    const newResult = new ScanResult({
-      project: project,
-      tool: tool,
-      severity: severity,
-      score: score,
-      issues: issues || [],
-      vulnerabilities: vulnerabilities || [],
-      reportUrl: reportUrl,
-      gitlabPipelineId: gitlabPipelineId,
-      gitlabJobId: gitlabJobId
-    });
-
-    await newResult.save();
-    console.log(`✅ Scan result from ${tool} saved successfully for project ${project}: ${newResult._id}`);
-
-    res.status(201).json({
-      success: true,
-      message: `Scan result from ${tool} saved successfully`,
-      resultId: newResult._id
-    });
-
-  } catch (err) {
-    console.error('❌ Failed to save scan result:', err);
-    const validationErrors = err.errors ? Object.keys(err.errors).map(key => err.errors[key].message).join(', ') : err.message;
-
-    res.status(500).json({
-      success: false,
-      error: 'Failed to save scan result',
-      details: validationErrors
-    });
-  }
-};
-
-const getScanResults = async (req, res) => {
-  try {
-    const results = await ScanResult.find().sort({ createdAt: -1 });
-    res.json({
-      success: true,
-      count: results.length,
-      results: results
-    });
-  } catch (err) {
-    console.error('Failed to fetch scan results:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch scan results',
-      details: err.message
-    });
-  }
-};
-
-const getScanResultById = async (req, res) => {
-  try {
-    const result = await ScanResult.findById(req.params.id);
-    if (!result) {
-      return res.status(404).json({
-        success: false,
-        error: 'Scan result not found'
-      });
-    }
-    res.json({
-      success: true,
-      result: result
-    });
-  } catch (err) {
-    console.error('Failed to fetch scan result:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch scan result',
-      details: err.message
-    });
-  }
-};
 
 // Update your module.exports in controllers/gitController.js
 module.exports = {
@@ -755,9 +652,6 @@ module.exports = {
   CLONE_DIR, 
   prepareRepoForAnalysis, 
   uploadFilesToGitLabProject, 
-  saveScanResult, 
-  getScanResults, 
-  getScanResultById, 
   cloneRepository 
 };
 

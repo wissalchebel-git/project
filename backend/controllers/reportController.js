@@ -26,20 +26,19 @@ const calculateOverallSeverity = (vulnerabilities) => {
 const receiveAndProcessScanResults = async (req, res) => {
   console.log('Received POST to /api/reports/scan-results. Request Body:', JSON.stringify(req.body, null, 2));
 
-  // Destructure fields, using default empty arrays for optional ones
   const {
-    project: projectId, // Rename to avoid conflict with `project` object
+    project: projectId, // This is the _id coming from CI
     tool,
-    // issues, // Removed as per model change, add back if needed
     vulnerabilities,
     score,
     reportUrl,
     gitlabPipelineId,
     gitlabJobId,
-    sonarqubeReportUrl // If you are sending this in the payload, include it
+    sonarqubeReportUrl,
+    projectName, // <--- Add this if your CI sends it
+    gitlabProjectId // <--- Add this if your CI sends it (GitLab's native numeric ID)
   } = req.body;
 
-  // Basic validation (more detailed can be added with express-validator)
   if (!projectId || !tool) {
     return res.status(400).json({
       success: false,
@@ -49,37 +48,52 @@ const receiveAndProcessScanResults = async (req, res) => {
   }
 
   try {
-    // 1. Verify Project Exists
-    const existingProject = await Project.findById(projectId);
-    if (!existingProject) {
-      return res.status(404).json({
-        success: false,
-        error: `Project with ID ${projectId} not found in database. Cannot save scan result.`,
-        receivedProjectId: projectId
-      });
+    let existingProject = null;
+
+    // First, try to find the project by the _id provided by the CI
+    if (mongoose.Types.ObjectId.isValid(projectId)) { // Always validate ObjectId format
+        existingProject = await Project.findById(projectId);
+    }
+    
+    // If not found by the provided _id, try to find by gitlabProjectId if it exists
+    // This is good if the CI sends its native GitLab Project ID along with the _id
+    if (!existingProject && gitlabProjectId) {
+        existingProject = await Project.findOne({ gitlabProjectId: gitlabProjectId });
     }
 
-    // 2. Calculate overall severity if not provided or to ensure consistency
+    // If still no project found, create a new one
+    if (!existingProject) {
+      console.log(`ℹ️ Project with ID ${projectId} (or GitLab ID ${gitlabProjectId}) not found. Creating new project...`);
+      existingProject = new Project({
+        _id: mongoose.Types.ObjectId.isValid(projectId) ? projectId : new mongoose.Types.ObjectId(), // Use provided _id if valid, otherwise generate new
+        name: projectName || `Project-${projectId || gitlabProjectId || 'Unknown'}`, // Use projectName from payload if available
+        gitlabProjectId: gitlabProjectId, // Save GitLab's native ID
+        description: `Auto-created from CI pipeline for project ID: ${gitlabProjectId}`,
+        // Add any other default fields for a new project here
+      });
+      await existingProject.save();
+      console.log(`✅ New Project created: ${existingProject._id} (Name: ${existingProject.name})`);
+    } else {
+      console.log(`✅ Found existing project: ${existingProject._id} (Name: ${existingProject.name})`);
+    }
+
+    // Now existingProject is guaranteed to be a valid Mongoose document
     const overallSeverity = calculateOverallSeverity(vulnerabilities);
 
-
-    // 3. Create and Save the Scan Result
     const newScanResult = new ScanResult({
-      project: projectId,
+      project: existingProject._id, 
       tool: tool,
-      severity: overallSeverity, // Use calculated or provided overall severity
-      score: score || 100, // Default to 100 if no score provided
+      severity: overallSeverity,
+      score: score || 100,
       vulnerabilities: vulnerabilities || [],
-      reportUrl: reportUrl || sonarqubeReportUrl, // Use sonarqubeReportUrl if reportUrl is missing
+      reportUrl: reportUrl || sonarqubeReportUrl,
       gitlabPipelineId: gitlabPipelineId,
       gitlabJobId: gitlabJobId,
     });
 
     await newScanResult.save();
-    console.log(`✅ Scan result from ${tool} saved successfully for project ${projectId}: ${newScanResult._id}`);
+    console.log(`✅ Scan result from ${tool} saved successfully for project ${existingProject._id}: ${newScanResult._id}`);
 
-    // 4. Generate Recommendations (if applicable)
-    // This logic should be here, after the scan result is saved
     const generatedRecs = await generateRecommendations(newScanResult);
     console.log(`💡 Generated ${generatedRecs.length} recommendations for scan result ${newScanResult._id}`);
 
@@ -92,7 +106,6 @@ const receiveAndProcessScanResults = async (req, res) => {
 
   } catch (err) {
     console.error('❌ Failed to save and process scan result:', err);
-    // Mongoose validation errors vs. other errors
     const validationErrors = err.name === 'ValidationError' ?
       Object.keys(err.errors).map(key => err.errors[key].message).join(', ') :
       err.message;
@@ -101,7 +114,7 @@ const receiveAndProcessScanResults = async (req, res) => {
       success: false,
       error: 'Failed to save and process scan result',
       details: validationErrors,
-      received: req.body // Include request body for debugging
+      received: req.body
     });
   }
 };
@@ -177,7 +190,60 @@ const generateRecommendations = async (scanResult) => {
   return recommendations;
 };
 
+const saveScanResult = async (req, res) => {
+  console.log('Received POST to /scan-results. Request Body:', req.body);
 
+  const { project, tool, severity, score, issues, vulnerabilities, reportUrl, gitlabPipelineId, gitlabJobId } = req.body;
+
+  if (!project || !tool || !severity) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: project (MongoDB ObjectId), tool, and overall severity.',
+      received: req.body
+    });
+  }
+
+  try {
+    const existingProject = await Project.findById(project);
+    if (!existingProject) {
+      return res.status(404).json({
+        success: false,
+        error: `Project with ID ${project} not found in database. Cannot save scan result.`
+      });
+    }
+
+    const newResult = new ScanResult({
+      project: project,
+      tool: tool,
+      severity: severity,
+      score: score,
+      issues: issues || [],
+      vulnerabilities: vulnerabilities || [],
+      reportUrl: reportUrl,
+      gitlabPipelineId: gitlabPipelineId,
+      gitlabJobId: gitlabJobId
+    });
+
+    await newResult.save();
+    console.log(`✅ Scan result from ${tool} saved successfully for project ${project}: ${newResult._id}`);
+
+    res.status(201).json({
+      success: true,
+      message: `Scan result from ${tool} saved successfully`,
+      resultId: newResult._id
+    });
+
+  } catch (err) {
+    console.error('❌ Failed to save scan result:', err);
+    const validationErrors = err.errors ? Object.keys(err.errors).map(key => err.errors[key].message).join(', ') : err.message;
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save scan result',
+      details: validationErrors
+    });
+  }
+};
 // --- Get all scan results (potentially with filters/pagination) ---
 const getScanResults = async (req, res) => {
   try {
@@ -300,14 +366,7 @@ const getLatestAggregatedScanResult = async (req, res) => {
     }
 };
 
-// Ajoutez cette nouvelle fonction à vos exports
-module.exports = {
-    receiveAndProcessScanResults,
-    getScanResults,
-    getScanResultById,
-    getRecommendationsByScanResultId,
-    getLatestAggregatedScanResult, // <--- NOUVEL EXPORT
-};
+
 // --- Get Scan Results for Time-Series Data (for Grafana Trends) ---
 const getScanResultsForTrends = async (req, res) => {
     try {
@@ -359,15 +418,12 @@ const getScanResultsForTrends = async (req, res) => {
     }
 };
 
-// Ajoutez cette nouvelle fonction à vos exports et à vos routes
-module.exports = {
-    // ... vos exports existants ...
-    getScanResultsForTrends, // NOUVEL EXPORT
-};
+
 module.exports = {
   receiveAndProcessScanResults,
   getScanResults,
   getScanResultById,
+  getLatestAggregatedScanResult,
   getLatestAggregatedScanResult,
   getScanResultsForTrends,
   getRecommendationsByScanResultId,

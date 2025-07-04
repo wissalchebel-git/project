@@ -110,7 +110,7 @@ export class RecommendationsDialog {
     MatDialogModule // Add this
   ],
   templateUrl: './dashboard.component.html',
-  styleUrls: ['./dashboard.component.css']
+  styleUrls: ['./dashboard.component.scss']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   displayedColumns: string[] = ['createdAt', 'project', 'tool', 'severity', 'score', 'vulnerabilitiesCount', 'reportUrl', 'actions'];

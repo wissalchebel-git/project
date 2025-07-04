@@ -7,24 +7,8 @@ const {
   createGitLabProject,
   deleteGitLabProject,
   addGitLabProjectVariable,
-  setupCICDVariables,
-  cloneRepository,
-  saveScanResult, 
-  getScanResults, 
-  getScanResultById, 
+  setupCICDVariables
 } = require('../controllers/gitController'); 
-
-
-router.post('/', cloneRepository);
-
-// Save scan results from GitLab CI pipeline
-router.post('/scan-results', saveScanResult); // Moved logic to controller
-
-// Get scan results (all)
-router.get('/scan-results', getScanResults); // Moved logic to controller
-
-// Get specific scan result by ID
-router.get('/scan-results/:id', getScanResultById); // Moved logic to controller
 
 
 // Middleware for request validation

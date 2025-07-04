@@ -4,9 +4,9 @@ stages:
   - report
 
 variables:
-  BACKEND_URL: "https://9e42-41-231-58-146.ngrok-free.app/api/git/scan-results"
+  BACKEND_URL: "https://f985-41-231-58-146.ngrok-free.app/api/reports/scan-results"
   TRIVY_IMAGE: "docker.io/aquasec/trivy:latest"
-  SONAR_HOST_URL: "https://ea39-41-231-58-146.ngrok-free.app"
+  SONAR_HOST_URL: "https://6abd-41-231-58-146.ngrok-free.app"
   FRONTEND_URL: "https://security-portal"
 
 
@@ -56,38 +56,100 @@ owasp_zap_scan:
 
 owasp_zap_post_results:
   stage: post_scan_results
-  image: alpine:latest 
+  image: alpine:latest
   needs:
     - job: owasp_zap_scan
-
   variables:
     MONGO_PROJECT_ID: "$MONGO_PROJECT_ID"
-    BACKEND_URL: "$BACKEND_URL" 
+    BACKEND_URL: "$BACKEND_URL"
   before_script:
-    - apk update && apk add --no-cache jq curl 
+    - apk update && apk add --no-cache jq curl
   script:
     - |
-      # Envoi résultat OWASP ZAP
-      if [ -f report-zap.html ]; then
-        echo "Fichier report-zap.html trouvé."
-        PAYLOAD=$(jq -n \
-          --arg project "$MONGO_PROJECT_ID" \
-          --arg tool "OWASP ZAP" \
-          --arg severity "Medium" \
-          --arg reportUrl "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/report-zap.html" \
-          --arg gitlabPipelineId "$CI_PIPELINE_ID" \
-          --arg gitlabJobId "$CI_JOB_ID" \
-          '{            project: $project,            tool: $tool,            severity: $severity,            reportUrl: $reportUrl,            gitlabPipelineId: $gitlabPipelineId,            gitlabJobId: $gitlabJobId,            message: "OWASP ZAP scan terminé."          }')
-        echo "Envoi résultat OWASP ZAP..."
-        echo "$PAYLOAD" | jq .
-        curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL"
+      # Check if report-zap.json exists, create empty if not
+      if [ ! -f "report-zap.json" ]; then
+        echo "Fichier report-zap.json non trouvé, création rapport vide."
+        echo '{"site":[]}' > report-zap.json
+      fi
+
+      # Read the ZAP JSON report
+      ZAP_REPORT_JSON=$(cat report-zap.json)
+
+      # --- Extract vulnerabilities from ZAP JSON report (similar to your report_generation job) ---
+      # Ensure ZAP vulnerabilities are parsed and mapped to your common vulnerability schema
+      ZAP_VULNS=$(echo "$ZAP_REPORT_JSON" | jq -c '
+        try (
+          [
+            .site[]? |
+            select(.alerts != null) |
+            .alerts[]? |
+            {
+              name: (.alert // "N/A"),
+              description: (.description // "No description available"),
+              severity: (.riskcode | tonumber | if . == 3 then "Critical" elif . == 2 then "High" elif . == 1 then "Medium" elif . == 0 then "Low" else "None" end), # Standardize severity
+              cve: (if .cweid? then "CWE-" + (.cweid | tostring) else "N/A" end),
+              packageName: (.param // "N/A"),
+              installedVersion: "N/A",
+              fixedVersion: "N/A",
+              type: "Application Vulnerability",
+              source: "OWASP ZAP"
+            }
+          ]
+        ) catch []
+      ')
+
+      # Determine overall severity for ZAP (if you want this at individual tool level)
+      ZAP_SEVERITY="None"
+      if echo "$ZAP_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(IN("CRITICAL"))' > /dev/null 2>&1; then
+        ZAP_SEVERITY="Critical"
+      elif echo "$ZAP_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(IN("HIGH"))' > /dev/null 2>&1; then
+        ZAP_SEVERITY="High"
+      elif echo "$ZAP_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(IN("MEDIUM"))' > /dev/null 2>&1; then
+        ZAP_SEVERITY="Medium"
+      elif echo "$ZAP_VULNS" | jq -e 'map(.severity | ascii_upcase) | any(IN("LOW"))' > /dev/null 2>&1; then
+        ZAP_SEVERITY="Low"
+      fi
+
+      # Construct the payload including 'vulnerabilities' array
+      PAYLOAD=$(jq -n \
+        --arg project "$MONGO_PROJECT_ID" \
+        --arg tool "OWASP ZAP" \
+        --arg severity "$ZAP_SEVERITY" \
+        --argjson vulnerabilities "$ZAP_VULNS" \
+        --arg reportUrl "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/report-zap.html" \
+        --arg gitlabPipelineId "$CI_PIPELINE_ID" \
+        --arg gitlabJobId "$CI_JOB_ID" \
+        --arg projectName "$CI_PROJECT_NAME" \
+        --arg gitlabProjectId "$CI_PROJECT_ID" \
+        '{
+          project: $project,
+          tool: $tool,
+          severity: $severity,
+          vulnerabilities: $vulnerabilities, 
+          reportUrl: $reportUrl,
+          gitlabPipelineId: $gitlabPipelineId,
+          gitlabJobId: $gitlabJobId,
+          projectName: $projectName, 
+          gitlabProjectId: $gitlabProjectId,
+          message: "OWASP ZAP scan terminé."
+        }')
+      
+      echo "Payload being sent to $BACKEND_URL:"
+      echo "$PAYLOAD" | jq .
+      curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL"
+      echo "Envoi du rapport ZAP au backend..."
+      HTTP_STATUS=$(curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL" -w "%{http_code}\n" -o /dev/null)
+
+      if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+        echo "✅ Rapport ZAP envoyé avec succès au backend. HTTP Status: $HTTP_STATUS"
       else
-        echo "Fichier report-zap.html non trouvé, pas d'envoi. Vérifiez que 'owasp_zap_scan' a bien uploadé ses artifacts et que ce job le 'needs'."
-        exit 1
+        echo "❌ Échec de l'envoi du rapport ZAP au backend. HTTP Status: $HTTP_STATUS"
+    
       fi
   artifacts:
     paths:
-      - report-zap.html 
+      - report-zap.html
+      - report-zap.json 
     expire_in: 1 week
   allow_failure: true
 
@@ -131,11 +193,13 @@ sonarqube_post_results:
       PAYLOAD=$(jq -n \
         --arg project "$MONGO_PROJECT_ID" \
         --arg tool "SonarQube" \
-        --arg severity "Info" \
+        --arg severity "Low" \
         --arg status "completed" \
         --arg reportUrl "$SONAR_REPORT_URL" \
         --arg gitlabPipelineId "$CI_PIPELINE_ID" \
         --arg gitlabJobId "$CI_JOB_ID" \
+        --arg projectName "$CI_PROJECT_NAME" \
+        --arg gitlabProjectId "$CI_PROJECT_ID" \
         '{
           project: $project,
           tool: $tool,
@@ -144,6 +208,8 @@ sonarqube_post_results:
           reportUrl: $reportUrl,
           gitlabPipelineId: $gitlabPipelineId,
           gitlabJobId: $gitlabJobId,
+          projectName: $projectName, 
+          gitlabProjectId: $gitlabProjectId,
           message: "Analyse SonarQube terminée. Voir le tableau de bord."
         }')
       echo "$PAYLOAD" | jq .
@@ -228,6 +294,8 @@ owasp_post_results:
         --arg reportUrl "$ODC_REPORT_URL" \
         --arg gitlabPipelineId "$CI_PIPELINE_ID" \
         --arg gitlabJobId "$CI_JOB_ID" \
+        --arg projectName "$CI_PROJECT_NAME" \
+        --arg gitlabProjectId "$CI_PROJECT_ID" \
         '{
           project: $project,
           tool: $tool,
@@ -235,7 +303,9 @@ owasp_post_results:
           vulnerabilities: $vulnerabilities,
           reportUrl: $reportUrl,
           gitlabPipelineId: $gitlabPipelineId,
-          gitlabJobId: $gitlabJobId
+          gitlabJobId: $gitlabJobId,
+          projectName: $projectName, 
+          gitlabProjectId: $gitlabProjectId
         }')
 
       echo "Payload being sent to $BACKEND_URL:"
@@ -361,6 +431,8 @@ trivy_post_results:
         --arg reportUrl "$TRIVY_REPORT_URL" \
         --arg gitlabPipelineId "$CI_PIPELINE_ID" \
         --arg gitlabJobId "$CI_JOB_ID" \
+        --arg projectName "$CI_PROJECT_NAME" \
+        --arg gitlabProjectId "$CI_PROJECT_ID" \
         '{
           project: $project,
           tool: $tool,
@@ -368,7 +440,9 @@ trivy_post_results:
           vulnerabilities: $vulnerabilities,
           reportUrl: $reportUrl,
           gitlabPipelineId: $gitlabPipelineId,
-          gitlabJobId: $gitlabJobId
+          gitlabJobId: $gitlabJobId,
+          projectName: $projectName, 
+          gitlabProjectId: $gitlabProjectId
         }')
       
       echo "Payload à envoyer:"
@@ -376,6 +450,13 @@ trivy_post_results:
       
       echo "Envoi du rapport Trivy au backend..."
       curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL"
+
+      HTTP_STATUS=$(curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL" -w "%{http_code}\n" -o /dev/null)
+      if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+        echo "✅ Rapport ZAP envoyé avec succès au backend. HTTP Status: $HTTP_STATUS"
+      else
+        echo "❌ Échec de l'envoi du rapport ZAP au backend. HTTP Status: $HTTP_STATUS"
+      fi
   allow_failure: true 
 
 report_generation:
@@ -513,6 +594,8 @@ report_generation:
         --arg reportUrl "$GITLAB_PIPELINE_URL" \
         --arg gitlabPipelineId "$CI_PIPELINE_ID" \
         --arg gitlabJobId "$CI_JOB_ID" \
+        --arg projectName "$CI_PROJECT_NAME" \
+        --arg gitlabProjectId "$CI_PROJECT_ID" \
         --arg message "Rapport de sécurité global généré." \
         --arg sonarqubeReportUrl "$SONAR_REPORT_URL" \
         '{
@@ -523,6 +606,8 @@ report_generation:
           reportUrl: $reportUrl,
           gitlabPipelineId: $gitlabPipelineId,
           gitlabJobId: $gitlabJobId,
+          projectName: $projectName, 
+          gitlabProjectId: $gitlabProjectId,
           message: $message,
           sonarqubeReportUrl: $sonarqubeReportUrl
         }')
@@ -530,7 +615,7 @@ report_generation:
       echo "Payload à envoyer au backend:"
       echo "$PAYLOAD" | jq .
 
-      curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL/api/reports/scan-results" || {
+      curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL" || {
         echo "Échec de l'envoi au backend, mais on continue (allow_failure: true)."
         exit 0
       }

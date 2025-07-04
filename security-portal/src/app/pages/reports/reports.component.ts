@@ -12,7 +12,7 @@ export class ReportsComponent implements OnInit {
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
-    this.http.get('http://localhost:5000/api/security-reports').subscribe((data: any) => {
+    this.http.get('https://9e42-41-231-58-146.ngrok-free.app/api/reports').subscribe((data: any) => {
       this.securityIssues = data.issues;
     });
   }
