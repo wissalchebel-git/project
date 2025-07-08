@@ -1,0 +1,222 @@
+<!-- dashboard.component.html -->
+<div class="dashboard-container">
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-container">
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <p class="loading-text">Loading security report...</p>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Content -->
+  <div *ngIf="!loading" class="dashboard-content">
+    <!-- Header -->
+    <div class="dashboard-header">
+      <div class="header-content">
+        <div class="title-section">
+          <div class="title-icon">🛡️</div>
+          <h1 class="dashboard-title">DevSecOps Security Dashboard</h1>
+        </div>
+        <button class="refresh-btn" (click)="refreshData()">
+          <span class="refresh-icon">🔄</span>
+          Refresh
+        </button>
+      </div>
+      
+      <div class="header-info">
+        <div class="info-item">
+          <span class="info-icon">🔗</span>
+          <span>Project: {{ project?.name }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-icon">🕐</span>
+          <span>Last Updated: {{ lastUpdated | date:'short' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overview Cards -->
+    <div class="overview-cards">
+      <div class="card">
+        <div class="card-content">
+          <div class="card-info">
+            <p class="card-label">Overall Severity</p>
+            <p class="card-value" [ngClass]="getSeverityClass(overallSeverity)">
+              {{ overallSeverity }}
+            </p>
+          </div>
+          <div class="card-icon">⚠️</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <div class="card-info">
+            <p class="card-label">Total Vulnerabilities</p>
+            <p class="card-value">{{ totalVulnerabilities }}</p>
+          </div>
+          <div class="card-icon">📊</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <div class="card-info">
+            <p class="card-label">Critical Issues</p>
+            <p class="card-value critical-text">{{ criticalCount }}</p>
+          </div>
+          <div class="card-icon">🚨</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <div class="card-info">
+            <p class="card-label">Outdated Packages</p>
+            <p class="card-value">{{ uniquePackages }}</p>
+          </div>
+          <div class="card-icon">📦</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-section">
+      <!-- Severity Distribution Chart -->
+      <div class="chart-container">
+        <h3 class="chart-title">Severity Distribution</h3>
+        <div class="chart-content">
+          <div class="pie-chart">
+            <canvas #severityChart></canvas>
+          </div>
+          <div class="chart-legend">
+            <div *ngFor="let item of severityData" class="legend-item">
+              <div class="legend-color" [style.background-color]="item.color"></div>
+              <span>{{ item.name }}: {{ item.value }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Source Distribution Chart -->
+      <div class="chart-container">
+        <h3 class="chart-title">Detection by Source</h3>
+        <div class="chart-content">
+          <div class="bar-chart">
+            <div *ngFor="let item of sourceData" class="bar-item">
+              <div class="bar-label">{{ item.name }}</div>
+              <div class="bar-container">
+                <div class="bar-fill" 
+                     [style.width.%]="(item.value / totalVulnerabilities) * 100"
+                     [style.background-color]="item.color">
+                </div>
+                <span class="bar-value">{{ item.value }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vulnerabilities Table -->
+    <div class="table-container">
+      <h3 class="table-title">Vulnerability Details</h3>
+      <div class="table-wrapper">
+        <table class="vulnerabilities-table">
+          <thead>
+            <tr>
+              <th>CVE</th>
+              <th>Package</th>
+              <th>Current Version</th>
+              <th>Fixed Version</th>
+              <th>Severity</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let vuln of vulnerabilities" class="table-row">
+              <td>
+                <div class="cve-cell">
+                  <span class="cve-link" (click)="openCVELink(vuln.cve)">
+                    {{ vuln.cve }}
+                  </span>
+                  <span class="external-link">🔗</span>
+                </div>
+              </td>
+              <td>{{ vuln.packageName }}</td>
+              <td>{{ vuln.installedVersion }}</td>
+              <td class="fixed-version">{{ vuln.fixedVersion }}</td>
+              <td>
+                <span class="severity-badge" [ngClass]="getSeverityClass(vuln.severity)">
+                  {{ vuln.severity }}
+                </span>
+              </td>
+              <td>{{ vuln.source }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="recommendations-container">
+  <h3 class="recommendations-title">Security Recommendations</h3>
+  <div class="recommendations-list">
+    <div *ngFor="let rec of displayRecommendations" class="recommendation-item">
+      <div class="recommendation-content">
+        <div class="recommendation-header">
+          <h4 class="recommendation-title">{{ rec.summary }}</h4>
+          <span class="priority-badge" [ngClass]="getPriorityClass(rec.priority)">
+            {{ rec.priority }}
+          </span>
+        </div>
+        <p class="recommendation-description">{{ rec.description }}</p>
+
+        <div *ngIf="rec.action_items && rec.action_items.length > 0">
+          <p class="recommendation-action-label">Action Items:</p>
+          <ul class="recommendation-action-list">
+            <li *ngFor="let item of rec.action_items">{{ item }}</li>
+          </ul>
+        </div>
+
+        <div *ngIf="rec.affected_vulnerabilities && rec.affected_vulnerabilities.length > 0" class="affected-items">
+          <p class="affected-items-label">Affected Vulnerabilities:</p>
+          <ul>
+            <li *ngFor="let vuln of rec.affected_vulnerabilities">
+              {{ vuln.name }} (Severity: {{ vuln.severity }} | Source: {{ vuln.source }})
+              <span *ngIf="vuln.cve"> - CVE: {{ vuln.cve }}</span>
+              <span *ngIf="vuln.package_name"> - Package: {{ vuln.package_name }}</span>
+              <span *ngIf="vuln.fixed_version && vuln.fixed_version !== 'N/A'"> - Fixed Version: {{ vuln.fixed_version }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <div *ngIf="rec.affected_dependencies && rec.affected_dependencies.length > 0" class="affected-items">
+          <p class="affected-items-label">Affected Dependencies:</p>
+          <ul>
+            <li *ngFor="let dep of rec.affected_dependencies">
+              {{ dep.package_name }} (Installed: {{ dep.installed_version }} | Fixed: {{ dep.fixed_version }} | Severity: {{ dep.severity }})
+              <span *ngIf="dep.cve"> - CVE: {{ dep.cve }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <div *ngIf="rec.links as links">
+          <a *ngIf="links.sonarqube_report as sonarqubeReportUrl"
+             [href]="sonarqubeReportUrl" target="_blank" class="recommendation-link">
+            View SonarQube Report
+          </a>
+        </div>
+
+      </div>
+    </div>
+    <div *ngIf="displayRecommendations.length === 0 && !loading" class="no-recommendations">
+      <p>No security recommendations found for this project, or scan is still pending.</p>
+    </div>
+    <div *ngIf="loading" class="loading-recommendations">
+      <p>Loading recommendations...</p>
+    </div>
+  </div>
+</div>
+  </div>
+</div>

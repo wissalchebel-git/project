@@ -1,8 +1,201 @@
 const ScanResult = require("../models/ScanResult");
 const Recommendation = require("../models/Recommendation");
-const Project = require("../models/Project"); 
+const Project = require("../models/Project");
 const mongoose = require('mongoose');
-const { validationResult } = require("express-validator"); // Keep this if you want validation
+const { validationResult } = require("express-validator"); 
+
+// Controller to save recommendations
+const saveRecommendations = async (req, res) => {
+  try {
+    const recommendationsData = req.body;
+    let projectObjectId;
+    let actualProjectName; // To store the resolved project name
+
+    // Determine project ID and name
+    if (recommendationsData.project && mongoose.Types.ObjectId.isValid(recommendationsData.project)) {
+      // Case 1: 'project' field is a valid MongoDB ObjectId
+      projectObjectId = recommendationsData.project;
+      const project = await Project.findById(projectObjectId);
+      if (!project) {
+        return res.status(404).json({ success: false, error: `Project with ID ${projectObjectId} not found.` });
+      }
+      actualProjectName = project.name; // Get name from database
+    } else if (recommendationsData.project_name || recommendationsData.project) {
+      // Case 2: 'project_name' is provided, or 'project' is a string that might be a name
+      const incomingProjectName = recommendationsData.project_name || recommendationsData.project;
+      let project = await Project.findOne({ name: incomingProjectName });
+
+      if (project) {
+        projectObjectId = project._id;
+        actualProjectName = project.name;
+        console.log(`✅ Found existing project by name: ${actualProjectName}`);
+      } else {
+        // Create new project if not found
+        const newProject = await Project.create({
+          name: incomingProjectName,
+          gitlabProjectId: recommendationsData.gitlabProjectId || 'N/A' // Use gitlabProjectId if available
+        });
+        projectObjectId = newProject._id;
+        actualProjectName = newProject.name;
+        console.log(`✅ Created new project by name: ${newProject.name}`);
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Project ID or Project Name is required to save recommendations.'
+      });
+    }
+
+    // Prepare the data for the Recommendation model
+    const newRecommendation = new Recommendation({
+      project: projectObjectId,
+      project_name: actualProjectName, // Use the resolved project name
+      scan_date: recommendationsData.scan_date || new Date(), // Default to now if not provided
+      overall_security_posture: recommendationsData.overall_security_posture,
+      total_vulnerabilities: recommendationsData.total_vulnerabilities,
+      recommendations: recommendationsData.recommendations,
+      summary: recommendationsData.summary,
+      error: recommendationsData.error, // Save error if present from the fallback
+    });
+
+    const savedRecommendation = await newRecommendation.save();
+    console.log(`💡 Saved ${savedRecommendation.recommendations.length} recommendations for project ${actualProjectName} (${projectObjectId})`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Recommendations received and saved successfully',
+      recommendationId: savedRecommendation._id, // Return the ID of the saved Recommendation document
+      projectId: savedRecommendation.project // Return the linked project ID
+    });
+  } catch (err) {
+    console.error('❌ Error saving recommendations:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save recommendations',
+      details: err.message,
+    });
+  }
+};
+
+const getAllRecommendations = async (req, res) => {
+  try {
+    let { projectId } = req.query; // Get projectId from query parameters (can be undefined)
+
+    let targetProjectId = null;
+    let fetchedReport = null; // This will hold the single Recommendation document we decide to send back
+
+    if (projectId) {
+      // Case 1: A projectId is provided in the query string (e.g., from a specific project's page)
+
+      // 1. Validate the format of the projectId
+      if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        return res.status(400).json({ success: false, error: 'Invalid projectId format. Must be a valid MongoDB ObjectId.' });
+      }
+
+      // 2. Use the provided logic to check if the Project actually exists
+      const existingProject = await Project.findById(projectId);
+      if (!existingProject) {
+        // If the projectId is valid in format but doesn't correspond to an existing project
+        return res.status(404).json({ success: false, message: `Project with ID ${projectId} not found.` });
+      }
+
+      // If validation and existence check pass, set it as the target
+      targetProjectId = projectId;
+
+      // Now, find the latest recommendation report associated with this specific project
+      fetchedReport = await Recommendation.findOne({ project: targetProjectId })
+        .populate('project', 'name gitlabProjectId') // Populate project details
+        .sort({ scan_date: -1, createdAt: -1 }); // Get the very latest report for this project
+
+    } else {
+      // Case 2: No projectId provided, so find the latest overall recommendation across ALL projects
+
+      fetchedReport = await Recommendation.findOne()
+        .populate('project', 'name gitlabProjectId')
+        .sort({ scan_date: -1, createdAt: -1 }); // Sort to get the most recent Recommendation document overall
+
+      if (fetchedReport) {
+        // If a latest overall report is found, use its project ID as the target
+        targetProjectId = fetchedReport.project._id;
+        console.log(`💡 No projectId provided, serving recommendations for latest project: ${fetchedReport.project.name} (${targetProjectId})`);
+      } else {
+        // If no Recommendation documents exist in the entire database
+        return res.status(200).json({ success: true, count: 0, recommendations: [], message: 'No recommendations found in the database.' });
+      }
+    }
+
+    // After determining `fetchedReport` (either by specific projectId or latest overall)
+    if (fetchedReport) {
+      // If a Recommendation report document was found, send its details
+      return res.json({
+        success: true,
+        count: fetchedReport.recommendations ? fetchedReport.recommendations.length : 0,
+        overall_security_posture: fetchedReport.overall_security_posture,
+        total_vulnerabilities: fetchedReport.total_vulnerabilities,
+        summary: fetchedReport.summary,
+        recommendations: fetchedReport.recommendations || [], // Ensure it's an array, even if empty
+        message: `Recommendations for project "${fetchedReport.project.name}" (latest scan) fetched successfully.`,
+        projectId: fetchedReport.project._id.toString(), // Convert ObjectId to string for frontend
+        projectName: fetchedReport.project.name,
+        scanDate: fetchedReport.scan_date // Send the scan date
+      });
+    } else {
+      // This path is reached if a valid projectId was provided, but no Recommendation documents
+      // are linked to that particular project (i.e., the project exists, but has no scans/reports).
+      // The `Project.findById` check above handles cases where the projectId itself doesn't exist.
+      return res.status(200).json({ success: true, count: 0, recommendations: [], message: `No recommendations found for project ID: ${projectId}.` });
+    }
+
+  } catch (err) {
+    console.error('Failed to fetch recommendations:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch recommendations due to a server error.',
+      details: err.message,
+    });
+  }
+};
+
+
+// Controller to get recommendations by a specific projectId (from URL parameter)
+const getRecommendationsByProjectId = async (req, res) => {
+  try {
+    const { projectId } = req.params; // Get projectId from URL parameter
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid Project ID format.',
+      });
+    }
+
+    const recommendations = await Recommendation.find({ project: projectId })
+      .populate('project', 'name gitlabProjectId') // Populate project details
+      .sort({ scan_date: -1, createdAt: -1 });
+
+    if (!recommendations || recommendations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No recommendations found for project ID: ${projectId}`,
+      });
+    }
+
+    res.json({
+      success: true,
+      count: recommendations.length,
+      recommendations: recommendations,
+    });
+  } catch (err) {
+    console.error('Error fetching recommendations by project ID:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch recommendations by project ID',
+      details: err.message,
+    });
+  }
+};
+
+
 
 // --- Helper function to calculate overall severity for a scan result ---
 const calculateOverallSeverity = (vulnerabilities) => {
@@ -22,7 +215,8 @@ const calculateOverallSeverity = (vulnerabilities) => {
 };
 
 
-// --- Main function to receive and save scan results, and generate recommendations ---
+
+// --- Main function to receive and save scan results, and process recommendations ---
 const receiveAndProcessScanResults = async (req, res) => {
   console.log('Received POST to /api/reports/scan-results. Request Body:', JSON.stringify(req.body, null, 2));
 
@@ -35,8 +229,9 @@ const receiveAndProcessScanResults = async (req, res) => {
     gitlabPipelineId,
     gitlabJobId,
     sonarqubeReportUrl,
-    projectName, // <--- Add this if your CI sends it
-    gitlabProjectId // <--- Add this if your CI sends it (GitLab's native numeric ID)
+    projectName, // Expected from CI payload
+    gitlabProjectId, // Expected from CI payload (GitLab's native numeric ID)
+    recommendations // <--- NEW: Expect recommendations directly from the pipeline payload
   } = req.body;
 
   if (!projectId || !tool) {
@@ -54,7 +249,7 @@ const receiveAndProcessScanResults = async (req, res) => {
     if (mongoose.Types.ObjectId.isValid(projectId)) { // Always validate ObjectId format
         existingProject = await Project.findById(projectId);
     }
-    
+
     // If not found by the provided _id, try to find by gitlabProjectId if it exists
     // This is good if the CI sends its native GitLab Project ID along with the _id
     if (!existingProject && gitlabProjectId) {
@@ -75,13 +270,24 @@ const receiveAndProcessScanResults = async (req, res) => {
       console.log(`✅ New Project created: ${existingProject._id} (Name: ${existingProject.name})`);
     } else {
       console.log(`✅ Found existing project: ${existingProject._id} (Name: ${existingProject.name})`);
+      // Optionally update project name/gitlabProjectId if they changed in the CI payload
+      if (projectName && existingProject.name !== projectName) {
+        existingProject.name = projectName;
+        await existingProject.save();
+        console.log(`✅ Updated project name for ${existingProject._id} to ${projectName}`);
+      }
+      if (gitlabProjectId && existingProject.gitlabProjectId !== gitlabProjectId) {
+        existingProject.gitlabProjectId = gitlabProjectId;
+        await existingProject.save();
+        console.log(`✅ Updated gitlabProjectId for ${existingProject._id} to ${gitlabProjectId}`);
+      }
     }
 
     // Now existingProject is guaranteed to be a valid Mongoose document
-    const overallSeverity = calculateOverallSeverity(vulnerabilities);
+    const overallSeverity = calculateOverallSeverity(vulnerabilities); // Still useful for ScanResult document
 
     const newScanResult = new ScanResult({
-      project: existingProject._id, 
+      project: existingProject._id, // Link to the actual Project ObjectId
       tool: tool,
       severity: overallSeverity,
       score: score || 100,
@@ -94,14 +300,40 @@ const receiveAndProcessScanResults = async (req, res) => {
     await newScanResult.save();
     console.log(`✅ Scan result from ${tool} saved successfully for project ${existingProject._id}: ${newScanResult._id}`);
 
-    const generatedRecs = await generateRecommendations(newScanResult);
-    console.log(`💡 Generated ${generatedRecs.length} recommendations for scan result ${newScanResult._id}`);
+    let recommendationsSavedCount = 0;
+    // --- Process received recommendations ---
+    if (recommendations) {
+        // Prepare the recommendations payload to match what saveRecommendations expects
+        // It's important that 'recommendations' here holds the entire object
+        // that your Python script outputs, which includes project_name, summary etc.
+        const recommendationPayload = {
+            ...recommendations, // Spread the incoming recommendations object
+            project: existingProject._id, // Ensure the correct MongoDB Project ID is linked
+            project_name: existingProject.name, // Ensure project name is consistent
+            scan_date: recommendations.scan_date || new Date().toISOString() // Use provided date or current
+        };
+
+        // Call the saveRecommendations function (from recommendationController)
+        // Note: saveRecommendations expects req, res arguments.
+        // We need to simulate this or refactor saveRecommendations to be a utility.
+        // The safest way is to call the underlying logic directly, or
+        // if saveRecommendations is small, inline it.
+        // For now, let's make a direct call to the Recommendation model.
+
+        const newRecommendationDoc = new Recommendation(recommendationPayload);
+        const savedRec = await newRecommendationDoc.save();
+        recommendationsSavedCount = savedRec.recommendations.length; // Count the actual recommendations
+        console.log(`💡 Saved ${recommendationsSavedCount} recommendations received from pipeline for project ${existingProject._id}`);
+
+        
+    }
+
 
     res.status(201).json({
       success: true,
       message: `Scan result from ${tool} saved successfully`,
       resultId: newScanResult._id,
-      recommendationsGenerated: generatedRecs.length
+      recommendationsSaved: recommendationsSavedCount // Report how many recommendations were saved
     });
 
   } catch (err) {
@@ -120,130 +352,6 @@ const receiveAndProcessScanResults = async (req, res) => {
 };
 
 
-// --- Recommendation Generation Logic ---
-const generateRecommendations = async (scanResult) => {
-  const recommendations = [];
-
-  // Rule 1: High/Critical Vulnerabilities Found
-  const criticalOrHighVulns = scanResult.vulnerabilities.filter(
-    v => v.severity === 'Critical' || v.severity === 'High'
-  );
-  if (criticalOrHighVulns.length > 0) {
-    recommendations.push(
-      new Recommendation({
-        project: scanResult.project,
-        relatedScan: scanResult._id,
-        title: `Immediate Action: ${criticalOrHighVulns.length} Critical/High Vulnerabilities Detected`,
-        description: `Review and patch the following critical/high vulnerabilities found by ${scanResult.tool}: ${criticalOrHighVulns.map(v => v.name).join(', ')}. Refer to the full report for details.`,
-        toolSuggested: 'Other', // General recommendation
-        severity: 'high',
-        status: 'pending'
-      })
-    );
-  }
-
-  // Rule 2: Outdated Dependencies (if from Trivy/Dependency-Check with fixed versions)
-  const outdatedDependencies = scanResult.vulnerabilities.filter(
-    v => v.packageName && v.fixedVersion && (scanResult.tool === 'Trivy' || scanResult.tool === 'OWASP Dependency Check')
-  );
-  if (outdatedDependencies.length > 0) {
-    recommendations.push(
-      new Recommendation({
-        project: scanResult.project,
-        relatedScan: scanResult._id,
-        title: `${outdatedDependencies.length} Outdated Dependencies Identified`,
-        description: `Update the following dependencies to their fixed versions: ${outdatedDependencies.map(v => `${v.packageName} (${v.installedVersion} -> ${v.fixedVersion})`).join(', ')}.`,
-        toolSuggested: 'Trivy', // Or 'OWASP Dependency Check'
-        severity: 'medium',
-        status: 'pending'
-      })
-    );
-  }
-
-  // Rule 3: Low Score (e.g., SonarQube Quality Gate Failure)
-  if (scanResult.score && scanResult.score < 80) { // Example threshold
-    recommendations.push(
-      new Recommendation({
-        project: scanResult.project,
-        relatedScan: scanResult._id,
-        title: `Low Scan Score: ${scanResult.score}%`,
-        description: `The overall security/quality score is low. Review findings from ${scanResult.tool} to improve code quality and security posture.`,
-        toolSuggested: scanResult.tool === 'SonarQube' ? 'SonarQube' : 'Other',
-        severity: 'medium',
-        status: 'pending'
-      })
-    );
-  }
-
-  // Rule 4: Missing Tools (More complex, would need project configuration)
-  // This rule would typically involve checking a project's "expected tools"
-  // from the Project model and comparing them to what's actually reported.
-  // For simplicity, we'll omit complex "missing tool" logic here,
-  // as it requires knowing what tools *should* have run.
-  // A simpler way: If "Rapport Agrégé" is missing, suggest running a comprehensive scan.
-
-  if (recommendations.length > 0) {
-    // Save the recommendations to the database
-    await Recommendation.insertMany(recommendations);
-  }
-
-  return recommendations;
-};
-
-const saveScanResult = async (req, res) => {
-  console.log('Received POST to /scan-results. Request Body:', req.body);
-
-  const { project, tool, severity, score, issues, vulnerabilities, reportUrl, gitlabPipelineId, gitlabJobId } = req.body;
-
-  if (!project || !tool || !severity) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing required fields: project (MongoDB ObjectId), tool, and overall severity.',
-      received: req.body
-    });
-  }
-
-  try {
-    const existingProject = await Project.findById(project);
-    if (!existingProject) {
-      return res.status(404).json({
-        success: false,
-        error: `Project with ID ${project} not found in database. Cannot save scan result.`
-      });
-    }
-
-    const newResult = new ScanResult({
-      project: project,
-      tool: tool,
-      severity: severity,
-      score: score,
-      issues: issues || [],
-      vulnerabilities: vulnerabilities || [],
-      reportUrl: reportUrl,
-      gitlabPipelineId: gitlabPipelineId,
-      gitlabJobId: gitlabJobId
-    });
-
-    await newResult.save();
-    console.log(`✅ Scan result from ${tool} saved successfully for project ${project}: ${newResult._id}`);
-
-    res.status(201).json({
-      success: true,
-      message: `Scan result from ${tool} saved successfully`,
-      resultId: newResult._id
-    });
-
-  } catch (err) {
-    console.error('❌ Failed to save scan result:', err);
-    const validationErrors = err.errors ? Object.keys(err.errors).map(key => err.errors[key].message).join(', ') : err.message;
-
-    res.status(500).json({
-      success: false,
-      error: 'Failed to save scan result',
-      details: validationErrors
-    });
-  }
-};
 // --- Get all scan results (potentially with filters/pagination) ---
 const getScanResults = async (req, res) => {
   try {
@@ -256,11 +364,28 @@ const getScanResults = async (req, res) => {
     if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
       query.project = projectId;
     }
+    // Handle multiple project IDs if 'All' is selected in Grafana or multiple values are passed
+    if (projectId && typeof projectId === 'string' && projectId.includes(',')) {
+      const projectIdsArray = projectId.split(',').filter(id => mongoose.Types.ObjectId.isValid(id));
+      if (projectIdsArray.length > 0) {
+        query.project = { $in: projectIdsArray };
+      }
+    }
+
 
     // 2. Filtrage par nom d'outil (si fourni)
+    // IMPORTANT: If tool is "All" from Grafana, it might come as an empty string or not present.
+    // If multiple tools are selected, it comes as a comma-separated string (e.g., "Trivy,OWASP ZAP").
+    // We need to handle this to query for multiple tools using $in.
     if (tool) {
-      query.tool = tool; // Exemple: "Trivy", "OWASP ZAP", "Automated Scan"
+      const toolsArray = tool.split(',').map(t => t.trim());
+      if (toolsArray.length > 1) { // If multiple tools selected (e.g., "Trivy,OWASP ZAP")
+        query.tool = { $in: toolsArray };
+      } else { // Single tool selected
+        query.tool = tool;
+      }
     }
+
 
     // Exécuter la requête Mongoose avec les filtres dynamiques
     const results = await ScanResult.find(query)
@@ -310,6 +435,9 @@ const getScanResultById = async (req, res) => {
 const getRecommendationsByScanResultId = async (req, res) => {
   try {
     const { scanResultId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(scanResultId)) { // Validate ID
+      return res.status(400).json({ success: false, error: 'Invalid scanResultId provided.' });
+    }
     const recommendations = await Recommendation.find({ relatedScan: scanResultId }).populate('project', 'name');
     if (recommendations.length === 0) {
       return res.status(404).json({ success: false, message: "No recommendations found for this scan result." });
@@ -326,10 +454,21 @@ const getLatestAggregatedScanResult = async (req, res) => {
     try {
         const { projectId } = req.query; // Optionnel: filtrer par ID de projet
 
-        let query = { tool: "Rapport Agrégé" }; // Chercher spécifiquement les rapports agrégés
+        let query = { tool: "Automated Scan" }; // Changed "Rapport Agrégé" to "Automated Scan" as per your pipeline
         if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
             query.project = projectId;
         }
+        // Handle multiple project IDs if 'All' is selected in Grafana or multiple values are passed
+        if (projectId && typeof projectId === 'string' && projectId.includes(',')) {
+          const projectIdsArray = projectId.split(',').filter(id => mongoose.Types.ObjectId.isValid(id));
+          if (projectIdsArray.length > 0) {
+            query.project = { $in: projectIdsArray };
+          } else {
+            // If "All" or invalid IDs, remove project filter to query all projects
+            delete query.project;
+          }
+        }
+
 
         const latestScan = await ScanResult.findOne(query)
                                            .sort({ createdAt: -1 }) // Le plus récent d'abord
@@ -343,18 +482,8 @@ const getLatestAggregatedScanResult = async (req, res) => {
             });
         }
 
-        // --- Important pour Grafana ---
-        // Si Grafana attend un tableau, même pour une seule entrée,
-        // vous pouvez envelopper le résultat.
-        // Ou si Grafana veut un objet unique, laissez-le tel quel.
-        // Pour les plugins JSON, un objet est souvent suffisant pour des "Stat Panels"
-        // et un tableau pour des "Table Panels" si vous utilisez `$.vulnerabilities`.
-
-        // Option 1: Retourner directement l'objet du dernier scan (bon pour Stat, etc.)
-        res.json(latestScan); // Grafana accèdera à des chemins comme $.severity, $.vulnerabilities
-
-        // Option 2 (si Grafana attend spécifiquement un tableau à la racine pour certaines visualisations)
-        // res.json([latestScan]); // Moins commun pour ce cas, mais possible.
+        // Return the object directly
+        res.json(latestScan);
 
     } catch (err) {
         console.error('❌ Failed to fetch latest aggregated scan result for Grafana:', err);
@@ -373,11 +502,25 @@ const getScanResultsForTrends = async (req, res) => {
         const { projectId, tool, limit } = req.query; // projectId et tool comme filtres optionnels, limit pour le nombre de résultats
 
         let query = {};
-        if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
-            query.project = projectId;
+        // Handle multiple project IDs if 'All' is selected in Grafana or multiple values are passed
+        if (projectId && typeof projectId === 'string') {
+          const projectIdsArray = projectId.split(',').filter(id => mongoose.Types.ObjectId.isValid(id));
+          if (projectIdsArray.length > 0) {
+            query.project = { $in: projectIdsArray };
+          }
+        } else if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
+          query.project = projectId;
         }
+
+
+        // Handle multiple tool names if 'All' is selected in Grafana or multiple values are passed
         if (tool) {
-            query.tool = tool; // Ex: "Trivy", "OWASP ZAP", "Automated Scan"
+            const toolsArray = tool.split(',').map(t => t.trim());
+            if (toolsArray.length > 1) { // If multiple tools selected (e.g., "Trivy,OWASP ZAP")
+                query.tool = { $in: toolsArray };
+            } else { // Single tool selected
+                query.tool = tool;
+            }
         }
 
         // Récupérer les scans triés par date de création (du plus récent au plus ancien)
@@ -402,7 +545,7 @@ const getScanResultsForTrends = async (req, res) => {
             pipeline_id: scan.gitlabPipelineId,
             job_id: scan.gitlabJobId,
             tool_name: scan.tool,
-            project_name: scan.project ? scan.project.name : 'N/A', // Si populé
+            project_name: scan.project ? scan.project.name : 'N/A', // If populated
             // ... toute autre métrique utile pour les graphiques
         }));
 
@@ -418,14 +561,34 @@ const getScanResultsForTrends = async (req, res) => {
     }
 };
 
+// --- NEW FUNCTION: Get all projects for Grafana dropdown ---
+const getAllProjects = async (req, res) => {
+  try {
+    const projects = await Project.find({}); // Fetch all projects
+
+    // Format for Grafana Query Variable: { text: "Project Name", value: "Project ID" }
+    const formattedProjects = projects.map(project => ({
+      text: project.name, // Display name in dropdown
+      value: project._id.toString() // Actual ID to filter data
+    }));
+
+    res.json(formattedProjects); // Return the array directly, Grafana expects this for query variables
+  } catch (err) {
+    console.error('❌ Failed to fetch all projects:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch projects', details: err.message });
+  }
+};
+
 
 module.exports = {
+  saveRecommendations,
+  getAllRecommendations,
+  getRecommendationsByProjectId,
   receiveAndProcessScanResults,
   getScanResults,
   getScanResultById,
   getLatestAggregatedScanResult,
-  getLatestAggregatedScanResult,
   getScanResultsForTrends,
   getRecommendationsByScanResultId,
-  // ... other report-related functions if they map to this controller
+  getAllProjects, 
 };

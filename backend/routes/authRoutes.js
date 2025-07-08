@@ -8,13 +8,13 @@ router.get('/', (req, res) => {
   });
   
 // Register User
-router.post("/register", authController.registerUser);
+router.post('/register', authController.registerUser);
 
 // Login User
-router.post("/login", authController.loginUser);
+router.post('/login', authController.loginUser);
 
 // Get Profile
-router.get("/profile", authController.getProfile);
+router.get('/profile', authController.getProfile);
 
 module.exports = router;
 

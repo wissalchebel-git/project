@@ -2,13 +2,13 @@ stages:
   - scan
   - post_scan_results
   - report
+  
 
 variables:
-  BACKEND_URL: "https://f985-41-231-58-146.ngrok-free.app/api/reports/scan-results"
+  BACKEND_URL: "https://101e-197-27-238-33.ngrok-free.app/api/reports/scan-results"
   TRIVY_IMAGE: "docker.io/aquasec/trivy:latest"
-  SONAR_HOST_URL: "https://6abd-41-231-58-146.ngrok-free.app"
+  SONAR_HOST_URL: "https://c3d8-197-27-238-33.ngrok-free.app"
   FRONTEND_URL: "https://security-portal"
-
 
 owasp_zap_scan:
   stage: scan
@@ -473,19 +473,16 @@ report_generation:
     SONAR_HOST_URL: "$SONAR_HOST_URL"
     FRONTEND_URL: "$FRONTEND_URL"
   before_script:
-    - apk update && apk add --no-cache jq curl
+    - apk update && apk add --no-cache jq curl python3 py3-pip
+    - pip3 install --no-cache-dir --break-system-packages rich || echo "Rich installation failed, continuing without it"
   script:
     - |
       set -euxo pipefail
-
       echo "Génération du rapport agrégé..."
-
       [ -f dependency-check-report.json ] || echo '{"dependencies": []}' > dependency-check-report.json
       [ -f trivy-report.json ] || echo '{"Results": []}' > trivy-report.json
       [ -f report-zap.json ] || echo '{"site":[]}' > report-zap.json
-
       # --- Extract Vulnerabilities from each tool's JSON report ---
-
       # OWASP Dependency Check (ODC)
       ODC_VULNS_RAW=$(cat dependency-check-report.json | jq -c '
         try (
@@ -518,7 +515,6 @@ report_generation:
           ]
         ) catch []
       ')
-
       # Trivy
       TRIVY_VULNS_RAW=$(cat trivy-report.json | jq -c '
         try (
@@ -540,7 +536,6 @@ report_generation:
           ]
         ) catch []
       ')
-
       # OWASP ZAP (assuming 'report-zap.json' structure)
       ZAP_VULNS_RAW=$(cat report-zap.json | jq -c '
         try (
@@ -562,9 +557,7 @@ report_generation:
           ]
         ) catch []
       ')
-
       # Merge all vulnerabilities using --argjson to pass variables safely
-      # Corrected: Ensure the entire jq command is on one logical line or properly escaped.
       ALL_VULNS=$(jq -n --argjson owasp_vulns "$ODC_VULNS_RAW" --argjson trivy_vulns "$TRIVY_VULNS_RAW" --argjson zap_vulns "$ZAP_VULNS_RAW" '$owasp_vulns + $trivy_vulns + $zap_vulns')
       echo "Total vuln : $(echo "$ALL_VULNS" | jq 'length')"
 
@@ -581,40 +574,250 @@ report_generation:
       fi
       echo "Severité globale : $OVERALL_SEVERITY"
 
+      # Construct the correct SonarQube report URL using CI_PROJECT_PATH_SLUG
       SONAR_REPORT_URL="${SONAR_HOST_URL}/dashboard?id=${CI_PROJECT_PATH_SLUG}"
       GITLAB_PIPELINE_URL="${CI_PROJECT_URL}/-/pipelines/${CI_PIPELINE_ID}"
 
-      echo "$ALL_VULNS" | jq '.' > aggregated-report.json
+      # Generate recommendations using inline Python script
+      cat << 'EOF' > generate_recommendations.py
+      import json
+      import sys
 
+      def get_severity_order(severity):
+          """Helper to order severities for finding the highest."""
+          order = {'CRITICAL': 5, 'HIGH': 4, 'MEDIUM': 3, 'LOW': 2, 'NONE': 1, 'N/A': 0}
+          return order.get(str(severity).upper(), 0)
+
+      def generate_recommendations(vulnerabilities, overall_severity, project_name, sonar_url):
+          """Generate recommendations based on vulnerabilities"""
+          recommendations = []
+
+          # Rule 1: High/Critical Vulnerabilities Found
+          critical_or_high_vulns = [
+              v for v in vulnerabilities
+              if v.get('severity', '').upper() in ['CRITICAL', 'HIGH']
+          ]
+          if critical_or_high_vulns:
+              recommendations.append({
+                  "id": "high_critical_vulnerabilities",
+                  "type": "High Priority Action",
+                  "severity_level": "Critical/High",
+                  "priority": "Immediate",
+                  "summary": f"{len(critical_or_high_vulns)} Critical/High Vulnerabilities Detected",
+                  "description": "These vulnerabilities pose significant security risks and should be addressed immediately.",
+                  "action_items": [
+                      "Review and prioritize patching of all critical/high vulnerabilities",
+                      "Implement temporary mitigations where immediate patches are not available",
+                      "Verify fixes through re-scanning",
+                      "Update security incident response procedures if needed"
+                  ],
+                  "affected_vulnerabilities": [
+                      {
+                          "name": v.get('name', 'N/A'),
+                          "severity": v.get('severity', 'N/A'),
+                          "source": v.get('source', 'N/A'),
+                          "cve": v.get('cve', 'N/A'),
+                          "description": v.get('description', 'N/A')[:200] + "..." if len(v.get('description', '')) > 200 else v.get('description', 'N/A'),
+                          "package_name": v.get('packageName', 'N/A'),
+                          "installed_version": v.get('installedVersion', 'N/A'),
+                          "fixed_version": v.get('fixedVersion', 'N/A')
+                      } for v in critical_or_high_vulns
+                  ]
+              })
+
+          # Rule 2: Outdated Dependencies with Fixed Versions
+          outdated_dependencies = [
+              v for v in vulnerabilities
+              if v.get('packageName') and v.get('fixedVersion') and v.get('fixedVersion') != 'N/A' and
+                  v.get('source') in ['Trivy', 'OWASP Dependency Check']
+          ]
+          if outdated_dependencies:
+              recommendations.append({
+                  "id": "outdated_dependencies",
+                  "type": "Dependency Update",
+                  "severity_level": "Medium",
+                  "priority": "High",
+                  "summary": f"{len(outdated_dependencies)} Outdated Dependencies Require Updates",
+                  "description": "These dependencies have known vulnerabilities with available fixes.",
+                  "action_items": [
+                      "Update dependencies to their latest secure versions",
+                      "Test updated dependencies in development environment",
+                      "Implement automated dependency scanning in CI/CD pipeline",
+                      "Establish regular dependency update schedule"
+                  ],
+                  "affected_dependencies": [
+                      {
+                          "package_name": d.get('packageName', 'N/A'),
+                          "installed_version": d.get('installedVersion', 'N/A'),
+                          "fixed_version": d.get('fixedVersion', 'N/A'),
+                          "cve": d.get('cve', 'N/A'),
+                          "vulnerability_name": d.get('name', 'N/A'),
+                          "source": d.get('source', 'N/A'),
+                          "severity": d.get('severity', 'N/A')
+                      } for d in outdated_dependencies
+                  ]
+              })
+
+          # Rule 3: Application Security Issues (from OWASP ZAP)
+          app_vulns = [v for v in vulnerabilities if v.get('source') == 'OWASP ZAP']
+          if app_vulns:
+              recommendations.append({
+                  "id": "application_security",
+                  "type": "Application Security",
+                  "severity_level": "Medium",
+                  "priority": "Medium",
+                  "summary": f"{len(app_vulns)} Application Security Issues Detected",
+                  "description": "Application-level vulnerabilities that could be exploited by attackers.",
+                  "action_items": [
+                      "Review and fix application security vulnerabilities",
+                      "Implement secure coding practices",
+                      "Conduct security code reviews",
+                      "Consider implementing Web Application Firewall (WAF)"
+                  ],
+                  "affected_vulnerabilities": [
+                      {
+                          "name": v.get('name', 'N/A'),
+                          "severity": v.get('severity', 'N/A'),
+                          "cve": v.get('cve', 'N/A'),
+                          "description": v.get('description', 'N/A')[:200] + "..." if len(v.get('description', '')) > 200 else v.get('description', 'N/A'),
+                          "parameter": v.get('packageName', 'N/A')
+                      } for v in app_vulns
+                  ]
+              })
+
+          # Rule 4: General Security Posture
+          if overall_severity.upper() in ['MEDIUM', 'HIGH', 'CRITICAL']:
+              recommendations.append({
+                  "id": "security_posture",
+                  "type": "General Security Posture",
+                  "severity_level": overall_severity,
+                  "priority": "Medium",
+                  "summary": f"Overall Security Posture: {overall_severity}", # Automated summary
+                  "description": "General security improvements needed based on overall assessment.",
+                  "action_items": [
+                      "Implement regular security scanning schedule",
+                      "Establish security metrics and monitoring",
+                      "Conduct security training for development team",
+                      "Review and update security policies"
+                  ],
+                  "links": {
+                      "sonarqube_report": sonar_url # Corrected SonarQube URL
+                  }
+              })
+          elif overall_severity.upper() == 'NONE':
+              recommendations.append({
+                  "id": "maintain_security",
+                  "type": "Maintenance",
+                  "severity_level": "None",
+                  "priority": "Low",
+                  "summary": "Good Security Posture - Maintain Current Practices",
+                  "description": "No significant vulnerabilities detected. Continue current security practices.",
+                  "action_items": [
+                      "Continue regular security scanning",
+                      "Maintain up-to-date dependencies",
+                      "Monitor for new security advisories",
+                      "Review security practices quarterly"
+                  ]
+              })
+          return {
+              "project_name": project_name,
+              "scan_date": None,  # Will be set by backend
+              "overall_security_posture": overall_severity,
+              "total_vulnerabilities": len(vulnerabilities),
+              "recommendations": recommendations,
+              "summary": {
+                  "critical_count": len([v for v in vulnerabilities if v.get('severity', '').upper() == 'CRITICAL']),
+                  "high_count": len([v for v in vulnerabilities if v.get('severity', '').upper() == 'HIGH']),
+                  "medium_count": len([v for v in vulnerabilities if v.get('severity', '').upper() == 'MEDIUM']),
+                  "low_count": len([v for v in vulnerabilities if v.get('severity', '').upper() == 'LOW']),
+                  "total_recommendations": len(recommendations)
+              }
+          }
+
+      if __name__ == "__main__":
+          try:
+              # Read vulnerabilities from stdin
+              vulnerabilities_json = sys.stdin.read()
+              vulnerabilities = json.loads(vulnerabilities_json)
+
+              # Get command line arguments
+              overall_severity = sys.argv[1] if len(sys.argv) > 1 else "None"
+              project_name = sys.argv[2] if len(sys.argv) > 2 else "N/A"
+              sonar_url = sys.argv[3] if len(sys.argv) > 3 else "N/A"
+
+              # Generate recommendations
+              recommendations = generate_recommendations(vulnerabilities, overall_severity, project_name, sonar_url)
+
+              # Output recommendations as JSON
+              print(json.dumps(recommendations, indent=2))
+
+          except Exception as e:
+              # Fallback recommendations in case of error
+              error_response = {
+                  "project_name": sys.argv[2] if len(sys.argv) > 2 else "N/A",
+                  "scan_date": None,
+                  "overall_security_posture": sys.argv[1] if len(sys.argv) > 1 else "None",
+                  "total_vulnerabilities": 0,
+                  "recommendations": [{
+                      "id": "error_fallback",
+                      "type": "Error",
+                      "severity_level": "Medium",
+                      "priority": "Medium",
+                      "summary": "Error generating recommendations",
+                      "description": f"An error occurred while generating recommendations: {str(e)}",
+                      "action_items": [
+                          "Review the security scan results manually",
+                          "Check the pipeline logs for more details",
+                          "Contact the security team for guidance"
+                      ]
+                  }],
+                  "summary": {
+                      "critical_count": 0,
+                      "high_count": 0,
+                      "medium_count": 0,
+                      "low_count": 0,
+                      "total_recommendations": 1
+                  },
+                  "error": str(e)
+              }
+              print(json.dumps(error_response, indent=2))
+      EOF
+      # Generate recommendations
+      # Pass the dynamically constructed SONAR_REPORT_URL to the Python script
+      RECOMMENDATIONS=$(echo "$ALL_VULNS" | python3 generate_recommendations.py "$OVERALL_SEVERITY" "$CI_PROJECT_NAME" "$SONAR_REPORT_URL")
+
+      echo "Recommendations generated:"
+      echo "$RECOMMENDATIONS" | jq .
+
+      # Save aggregated report with recommendations
+      echo "$ALL_VULNS" | jq '.' > aggregated-report.json
+      echo "$RECOMMENDATIONS" > recommendations.json
+
+      echo "Sending recommendations to backend..."
+      curl -X POST \
+      -H "Content-Type: application/json" \
+      -d "$RECOMMENDATIONS" \
+      "https://101e-197-27-238-33.ngrok-free.app/api/reports/recommendations" || {
+      echo "Failed to send recommendations to backend, but continuing..."
+           }
+
+      # Create payload with recommendations included
       PAYLOAD=$(jq -n \
         --arg project "$MONGO_PROJECT_ID" \
         --arg tool "Automated Scan" \
         --arg severity "$OVERALL_SEVERITY" \
         --argjson vulnerabilities "$ALL_VULNS" \
+        --argjson recommendations "$RECOMMENDATIONS" \
         --arg reportUrl "$GITLAB_PIPELINE_URL" \
         --arg gitlabPipelineId "$CI_PIPELINE_ID" \
         --arg gitlabJobId "$CI_JOB_ID" \
         --arg projectName "$CI_PROJECT_NAME" \
         --arg gitlabProjectId "$CI_PROJECT_ID" \
-        --arg message "Rapport de sécurité global généré." \
+        --arg message "Rapport de sécurité global généré avec recommandations." \
         --arg sonarqubeReportUrl "$SONAR_REPORT_URL" \
-        '{
-          project: $project,
-          tool: $tool,
-          severity: $severity,
-          vulnerabilities: $vulnerabilities,
-          reportUrl: $reportUrl,
-          gitlabPipelineId: $gitlabPipelineId,
-          gitlabJobId: $gitlabJobId,
-          projectName: $projectName, 
-          gitlabProjectId: $gitlabProjectId,
-          message: $message,
-          sonarqubeReportUrl: $sonarqubeReportUrl
-        }')
-
+        '{          project: $project,          tool: $tool,          severity: $severity,          vulnerabilities: $vulnerabilities,          recommendations: $recommendations,          reportUrl: $reportUrl,          gitlabPipelineId: $gitlabPipelineId,          gitlabJobId: $gitlabJobId,          projectName: $projectName,           gitlabProjectId: $gitlabProjectId,          message: $message,          sonarqubeReportUrl: $sonarqubeReportUrl        }')
       echo "Payload à envoyer au backend:"
       echo "$PAYLOAD" | jq .
-
       curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$BACKEND_URL" || {
         echo "Échec de l'envoi au backend, mais on continue (allow_failure: true)."
         exit 0
@@ -623,5 +826,6 @@ report_generation:
     when: always
     paths:
       - aggregated-report.json
+      - recommendations.json
     expire_in: 1 week
   allow_failure: true

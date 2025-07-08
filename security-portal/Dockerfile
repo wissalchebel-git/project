@@ -13,7 +13,7 @@ RUN npm install
 COPY . .
 
 # Compiler l'application Angular en mode production
-RUN npm run build -- --output-path=dist/security-portal --configuration=production
+RUN npm run build --output-path=dist/security-portal
 
 # -------- Stage 2: Serve app with Nginx + SSL --------
 FROM nginx:alpine
