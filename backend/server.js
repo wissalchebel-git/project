@@ -1,8 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const connectDB = require('./config/db');
 const mongoose = require('mongoose');
-const getKeycloak = require('./keycloak/keycloak-config');
 const errorHandler = require('./middleware/errorHandler');
 const reportRoutes = require('./routes/reporttRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -39,7 +37,7 @@ app.use(bodyParser.json());
 
 // CORS
 app.use(cors({
-  origin: ['https://security-portal', 'http://security-portal', 'http://localhost:4200'],
+  origin: ['https://security-portal', 'http://security-portal', 'http://localhost:4200','https://101e-197-27-238-33.ngrok-free.app'],
   credentials: true
 }));
 

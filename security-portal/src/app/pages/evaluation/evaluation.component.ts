@@ -1008,7 +1008,7 @@ get implementedSecurityMeasuresStatus(): 'success' | 'warning' {
     // Directly exposing private tokens on the frontend is generally NOT recommended for production.
     // For development, you might hardcode it or use an environment variable.
     // For production, create a backend endpoint that acts as a proxy to GitLab API.
-    const GITLAB_PIPELINE_TOKEN = 'glpat-EZdtjp1rCrXB4DcDfqHC' // <--- IMPORTANT: Replace with your actual token
+    const GITLAB_PIPELINE_TOKEN = 'glpat-KgbFnsExshmNRh1iHoEs' // <--- IMPORTANT: Replace with your actual token
                                                               // or proxy this call via your backend
 
     if (!GITLAB_PIPELINE_TOKEN) {

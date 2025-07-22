@@ -189,7 +189,7 @@ sonarqube_post_results:
     - apk update && apk add --no-cache jq curl
   script:
     - |
-      SONAR_REPORT_URL="${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
+      SONAR_REPORT_URL="https://c3d8-197-27-238-33.ngrok-free.app/dashboard?id=${SONAR_PROJECT_KEY}"
       PAYLOAD=$(jq -n \
         --arg project "$MONGO_PROJECT_ID" \
         --arg tool "SonarQube" \
@@ -575,7 +575,7 @@ report_generation:
       echo "Severité globale : $OVERALL_SEVERITY"
 
       # Construct the correct SonarQube report URL using CI_PROJECT_PATH_SLUG
-      SONAR_REPORT_URL="${SONAR_HOST_URL}/dashboard?id=${CI_PROJECT_PATH_SLUG}"
+      SONAR_REPORT_URL="https://c3d8-197-27-238-33.ngrok-free.app/dashboard?id=${CI_PROJECT_PATH_SLUG}"
       GITLAB_PIPELINE_URL="${CI_PROJECT_URL}/-/pipelines/${CI_PIPELINE_ID}"
 
       # Generate recommendations using inline Python script
