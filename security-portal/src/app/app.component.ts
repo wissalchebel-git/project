@@ -16,7 +16,6 @@ export class AppComponent {
   menuItems = [  
     { title: 'Dashboard', icon: 'home-outline', link: '/dashboard' },
     { title: 'Evaluation', icon: 'edit-2-outline', link: '/evaluation' },
-    { title: 'Security Reports', icon: 'file-text-outline', link: '/reports' },
     { title: 'Notifications', icon: 'bell-outline', link: '/notifications' },
     { title: 'User Profile', icon: 'person-outline', link: '/profile' },
     { title: 'Settings', icon: 'settings-outline', link: '/settings' }
